@@ -721,3 +721,40 @@ input, select, textarea, .input, .search input { font-size: 16px; }
   .cal-card { padding: 20px; }
   .cal-week, .cal-grid { gap: 8px; }
 }
+
+/* ---------- Importar estado de cuenta ---------- */
+.head-actions { display: flex; gap: 8px; }
+.imp-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+.imp-summary span { padding: 8px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; color: var(--text-2); }
+.imp-summary span.muted { color: var(--muted); }
+.imp-summary b { font-weight: 700; color: var(--text); }
+.imp-summary b.pos { color: var(--green-text); }
+.imp-opts { margin-top: 4px; }
+.imp-bar { display: flex; justify-content: space-between; align-items: center; margin: 16px 0 6px; font-size: 12.5px; color: var(--muted); }
+.imp-bar .link { color: var(--blue-text); font-weight: 600; font-size: 13px; }
+.imp-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.imp-row { display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--line); transition: opacity .15s; }
+.imp-row.off { opacity: .45; }
+.imp-check { width: 26px; height: 26px; margin-top: 2px; border-radius: 8px; border: 1.5px solid var(--line-strong); display: grid; place-items: center; color: transparent; }
+.imp-check svg { width: 15px; height: 15px; }
+.imp-check[aria-pressed="true"] { background: var(--green); border-color: var(--green); color: var(--on-green); }
+.imp-main { min-width: 0; }
+.imp-desc { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.imp-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); margin: 2px 0 6px; }
+.imp-flag { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; background: var(--blue-soft); color: var(--blue-text); }
+/* Categoría como etiqueta compacta; el <select> invisible encima conserva 16px (sin zoom en iOS) */
+.imp-catw { position: relative; display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px 0 7px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--text-2); font-size: 12px; font-weight: 600; cursor: pointer; }
+.imp-catw svg { width: 13px; height: 13px; color: var(--green-text); }
+.imp-catw::after { content: ""; width: 6px; height: 6px; margin-left: 2px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg) translateY(-2px); }
+.imp-catw select { position: absolute; inset: 0; width: 100%; opacity: 0; font-size: 16px; cursor: pointer; appearance: none; border: 0; }
+.imp-catw:focus-within { border-color: var(--blue); }
+.imp-amt { font-family: var(--font-display); font-weight: 650; font-size: 14.5px; white-space: nowrap; margin-top: 2px; }
+.imp-amt.income { color: var(--green-text); }
+.imp-preview { display: grid; gap: 1px; background: var(--line); border-radius: 14px; overflow: hidden; }
+.imp-preview > div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; background: var(--surface); font-size: 13px; }
+.imp-preview span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+.imp-preview b.income { color: var(--green-text); }
+.imp-none { color: var(--muted); justify-content: center !important; }
+.btn[disabled] { opacity: .4; pointer-events: none; }
+
+dialog.sheet:focus, dialog.sheet:focus-visible, .sheet-inner:focus { outline: none; }

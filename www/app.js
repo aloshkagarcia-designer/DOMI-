@@ -35,6 +35,7 @@
     pie: 'M21 12a9 9 0 1 1-9-9v9zM15 3.5A9 9 0 0 1 20.5 9H15z',
     gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
     plus: 'M12 5v14M5 12h14',
+    check: 'M5 12.5l4.5 4.5L19 7.5',
     calendar: 'M4 6h16v15H4zM4 10h16M8 3v4M16 3v4',
     x: 'M18 6 6 18M6 6l12 12',
     search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',
@@ -189,6 +190,7 @@
     return new Date(Y, M - 1, D).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' });
   };
   const pctFmt = n => `${Math.round(n)}%`;
+  const shortDate = d => { const [Y, M, D] = d.split('-').map(Number); return `${D} ${MONTHS[M - 1].slice(0, 3)}${Y !== new Date().getFullYear() ? ' ' + Y : ''}`; };
   // Fecha relativa breve: hoy, ayer, hace N días, o «20 nov»
   const ago = d => {
     const [Y, M, D] = d.split('-').map(Number), then = new Date(Y, M - 1, D), now = new Date(); now.setHours(0, 0, 0, 0);
@@ -386,7 +388,7 @@
     const { inc, exp, inv, bal } = totals(list);
     if (!state.tx.length) {
       return `<div class="page-head"><div><div class="eyebrow">${greeting()}</div><h1 class="h1">Tu dinero.<br><span>Bajo tu dominio.</span></h1></div></div>
-      ${installBanner()}${emptyState('Empieza con tu primer movimiento', 'Registra un gasto o ingreso y DOMI construye tus gráficas, presupuestos e insights en automático.', '<button class="btn" data-action="demo">Ver con datos de ejemplo</button>')}`;
+      ${installBanner()}${emptyState('Empieza con tu primer movimiento', 'Registra un gasto o ingreso y DOMI construye tus gráficas, presupuestos e insights en automático.', '<button class="btn" data-action="stmt">Importar estado de cuenta</button><button class="btn ghost" data-action="demo">Ver con datos de ejemplo</button>')}`;
     }
     const prev = totals(inMonth(shiftYM(ui.month, -1)));
     const savingRate = inc ? ((inc - exp) / inc) * 100 : 0;  // invertir también es ahorrar
@@ -514,7 +516,7 @@
 
     const cal = ui.hview === 'cal';
     const head = `<div class="page-head"><div><div class="eyebrow">${ui.type === 'reimb' && !cal ? 'Todos los meses' : esc(monthName(ui.month))}</div><h1 class="h1">Movimientos<span>.</span></h1></div>
-      <button class="btn sm" data-action="export-csv">${icon('download')}Exportar reporte</button></div>
+      <div class="head-actions"><button class="btn sm" data-action="stmt">${icon('upload')}Importar</button><button class="btn sm" data-action="export-csv">${icon('download')}Exportar</button></div></div>
     <div class="seg hview" role="tablist" aria-label="Vista">
       <button type="button" role="tab" data-hview="list" aria-pressed="${!cal}" aria-selected="${!cal}">${icon('list')}Lista</button>
       <button type="button" role="tab" data-hview="cal" aria-pressed="${cal}" aria-selected="${cal}">${icon('calendar')}Calendario</button>
@@ -693,6 +695,7 @@
       <section class="card"><h2 class="h2" style="margin-bottom:6px">Datos</h2><div class="set-list">
         <div class="set-row"><div><div class="label">Reporte CSV</div><div class="hint">Abre en Excel o Google Sheets</div></div><button class="btn sm" data-action="export-csv">${icon('download')}CSV</button></div>
         <div class="set-row"><div><div class="label">Respaldo completo</div><div class="hint">${state.tx.length} movimientos · ${kb} KB</div></div><button class="btn sm" data-action="export-json">${icon('download')}JSON</button></div>
+        <div class="set-row"><div><div class="label">Estado de cuenta</div><div class="hint">Importa el CSV de tu banco</div></div><button class="btn sm" data-action="stmt">${icon('upload')}Importar</button></div>
         <div class="set-row"><div><div class="label">Restaurar respaldo</div><div class="hint">Reemplaza los datos actuales</div></div><button class="btn sm" data-action="import">${icon('upload')}Importar</button></div>
         <div class="set-row"><div><div class="label">Datos de ejemplo</div><div class="hint">Explora la app con 6 meses ficticios</div></div><button class="btn sm" data-action="demo">Cargar</button></div>
         <div class="set-row"><div><div class="label" style="color:var(--danger)">Borrar todo</div><div class="hint">No se puede deshacer</div></div><button class="btn sm danger" data-action="wipe">Borrar</button></div>
@@ -716,7 +719,7 @@
     $('#sheetBody').innerHTML = `<div class="sheet-grip"></div>${html}`;
     if (!sheet.open) sheet.showModal();
   };
-  const closeSheet = () => { if (sheet.open) sheet.close(); ui.draft = null; };
+  const closeSheet = () => { if (sheet.open) sheet.close(); ui.draft = null; ui.imp = null; };
   sheet.addEventListener('click', e => { if (e.target === sheet) closeSheet(); });
   sheet.addEventListener('close', () => { ui.draft = null; });
   const sheetHead = t => `<div class="sheet-head"><h2 class="h2" id="sheetTitle" style="font-size:20px">${t}</h2><button type="button" class="icon-btn" data-action="close" aria-label="Cerrar">${icon('x')}</button></div>`;
@@ -914,6 +917,220 @@
     toastTimer = setTimeout(() => el.classList.remove('show'), undo ? 5000 : 2600);
   };
 
+  // ---------- Importar estado de cuenta (CSV del banco) ----------
+  const normTxt = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+  // Bancos mexicanos suelen exportar en Windows-1252 (acentos «rotos» si se lee como UTF-8)
+  const decodeFile = async file => {
+    const buf = await file.arrayBuffer();
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+    catch { return new TextDecoder('windows-1252').decode(buf); }
+  };
+
+  const parseCSV = text => {
+    text = text.replace(/^﻿/, '');
+    const sample = text.split(/\r?\n/).slice(0, 30);
+    const delim = [',', ';', '\t', '|'].map(d => ({ d, n: sample.filter(l => l.split(d).length > 2).length })).sort((a, b) => b.n - a.n)[0].d;
+    const rows = []; let row = [], cell = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+      else if (ch === '"') q = true;
+      else if (ch === delim) { row.push(cell.trim()); cell = ''; }
+      else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell.trim()); rows.push(row); row = []; cell = ''; }
+      else cell += ch;
+    }
+    if (cell || row.length) { row.push(cell.trim()); rows.push(row); }
+    return rows.filter(r => r.some(c => c !== ''));
+  };
+
+  const COL_KEYS = {
+    date: /^(fecha|date|dia|f\. ?oper)/,
+    desc: /(concepto|descripci|description|detalle|movimiento|establecimiento|comercio|leyenda)/,
+    debit: /(cargo|retiro|debito|debe|salida|withdraw|debit)/,
+    credit: /(abono|deposito|credito|haber|entrada|deposit|credit)/,
+    amount: /(importe|monto|amount|cantidad)/
+  };
+  const detectColumns = rows => {
+    for (let i = 0; i < Math.min(rows.length, 25); i++) {
+      const h = rows[i].map(normTxt), map = {};
+      for (const [k, re] of Object.entries(COL_KEYS)) { const j = h.findIndex((c, idx) => re.test(c) && !Object.values(map).includes(idx)); if (j >= 0) map[k] = j; }
+      if (map.date !== undefined && (map.amount !== undefined || map.debit !== undefined || map.credit !== undefined)) {
+        if (map.debit !== undefined || map.credit !== undefined) delete map.amount;
+        if (map.desc === undefined) map.desc = h.findIndex((c, idx) => !Object.values(map).includes(idx) && !/saldo|balance|referencia|folio/.test(c));
+        return { header: i, map, mode: map.amount !== undefined ? 'one' : 'two' };
+      }
+    }
+    return null;
+  };
+
+  const MES = { ene: 1, jan: 1, feb: 2, mar: 3, abr: 4, apr: 4, may: 5, jun: 6, jul: 7, ago: 8, aug: 8, sep: 9, set: 9, oct: 10, nov: 11, dic: 12, dec: 12 };
+  const parseDateMX = s => {
+    s = normTxt(s); let y, m, d, r;
+    if ((r = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/))) [, y, m, d] = r;
+    else if ((r = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/))) [, d, m, y] = r;          // dd/mm/aaaa (México)
+    else if ((r = s.match(/^(\d{1,2})[\s\-\/.]*([a-z]{3})[a-z]*\.?[\s\-\/.,]*(\d{2,4})/))) { d = r[1]; m = MES[r[2]]; y = r[3]; }
+    else return null;
+    y = +y; m = +m; d = +d; if (y < 100) y += 2000;
+    if (!m || m > 12 || !d || d > 31) return null;
+    return `${y}-${pad(m)}-${pad(d)}`;
+  };
+
+  const parseMoneyMX = s => {
+    s = String(s || '').trim(); if (!s) return null;
+    const neg = /^\(.*\)$/.test(s) || /^\s*-|-\s*$|^\$\s*-/.test(s);
+    let t = s.replace(/[^\d.,]/g, '');
+    if (!t || !/\d/.test(t)) return null;
+    const lc = t.lastIndexOf(','), ld = t.lastIndexOf('.');
+    if (lc > -1 && ld > -1) t = lc > ld ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+    else if (lc > -1) t = /,\d{1,2}$/.test(t) ? t.replace(',', '.') : t.replace(/,/g, '');
+    const n = parseFloat(t);
+    return isFinite(n) ? (neg ? -n : n) : null;
+  };
+
+  // Categorización automática por palabras clave de comercios comunes en México
+  const RULES = [
+    [/uber ?eats|rappi|didi ?food|starbucks|restaur|taqueria|cafe|vips|sanborns|little caesar|domino|kfc|mcdonald|burger|pizza/, 'comida'],
+    [/walmart|bodega aurrera|soriana|chedraui|la comer|costco|sams|heb|oxxo|7.?eleven|superama|city market|fresko|super/, 'comida'],
+    [/uber|didi|cabify|pemex|gasolin|bp |shell|g500|mobil|televia|pase |iave|metro|estacionam|parking/, 'transporte'],
+    [/cfe|comision federal/, 'servicios', 'luz'], [/telmex|totalplay|izzi|megacable|infinitum/, 'servicios', 'internet'],
+    [/telcel|at&t|att |movistar|bait|virgin mobile/, 'servicios', 'celular'], [/sacmex|agua|aguas de/, 'servicios', 'agua'],
+    [/naturgy|gas natural|gas lp|zeta gas|gas express/, 'servicios', 'gas'], [/sky |dish |star tv/, 'servicios', 'tv'],
+    [/netflix|disney|hbo|max\.com|prime video|youtube|paramount|vix|crunchyroll|star\+/, 'suscripciones', 'streaming'],
+    [/spotify|apple music|deezer|tidal/, 'suscripciones', 'musica'], [/smart ?fit|sport ?city|gym|gimnasio|anytime fitness|energy fitness/, 'suscripciones', 'gimnasio'],
+    [/icloud|google one|google storage|dropbox|onedrive/, 'suscripciones', 'nube'], [/playstation|xbox|steam|nintendo|epic games/, 'suscripciones', 'videojuegos'],
+    [/apple\.com|google play|chatgpt|openai|adobe|canva|microsoft|notion/, 'suscripciones', 'apps'],
+    [/amazon|mercado ?libre|mercadopago|liverpool|palacio de hierro|coppel|zara|h&m|shein|suburbia|sears|elektra|best buy|nike|adidas/, 'compras'],
+    [/farmacia|similares|benavides|del ahorro|guadalajara|hospital|medic|doctor|dental|laboratorio|chopo/, 'salud'],
+    [/cinepolis|cinemex|ticketmaster|eticket|bar |antro|boliche/, 'ocio'],
+    [/aeromexico|volaris|viva ?aerobus|airbnb|hotel|booking|expedia|despegar|ado /, 'viajes'],
+    [/colegiatura|universidad|escuela|udemy|coursera|platzi|domestika/, 'educacion'],
+    [/renta|home depot|ikea|mantenimiento condominio|predial/, 'hogar']
+  ];
+  const INCOME_RULES = [[/nomina|sueldo|salario|payroll/, 'salario'], [/reembolso|devolucion|bonificacion|cashback/, 'reembolso'], [/interes|rendimiento|dividendo/, 'inversion']];
+  const ruleKey = desc => normTxt(desc).replace(/\d+/g, '').replace(/[^a-z& ]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
+  const categorize = (desc, type) => {
+    const k = ruleKey(desc), learned = (state.rules || {})[k];
+    if (learned && cat(learned.cat) && (CATS[type] || []).some(c => c.id === learned.cat)) return { ...learned };
+    const n = ' ' + normTxt(desc) + ' ';
+    if (type === 'income') { const r = INCOME_RULES.find(([re]) => re.test(n)); return { cat: r ? r[1] : 'otros-in', sub: null }; }
+    const r = RULES.find(([re]) => re.test(n));
+    return r ? { cat: r[1], sub: r[2] || null } : { cat: 'otros', sub: null };
+  };
+  const CARD_PAYMENT = /pago (a |de )?(tarjeta|tdc|tc)|su pago|gracias por su pago|pago recibido|pago .*credito|abono a tarjeta/;
+  const cleanDesc = s => {
+    let t = String(s || '').replace(/\s+/g, ' ').replace(/\b\d{6,}\b/g, '').replace(/\s+/g, ' ').trim();
+    if (t === t.toUpperCase()) t = t.toLowerCase().replace(/(^|[\s*\/\-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()).replace(/\b(De|Del|Y|En|A)\b(?!$)/g, w => w.toLowerCase()).replace(/^(\p{Ll})/u, c => c.toUpperCase()).replace(/\b(Cfe|Spei|Oxxo|Iva|Tdc|Atm|Sat)\b/g, w => w.toUpperCase());
+    return t.slice(0, 60) || 'Movimiento importado';
+  };
+
+  const buildImportItems = () => {
+    const I = ui.imp, { map, mode, invert } = I, items = [];
+    I.rows.slice(I.header + 1).forEach((r, idx) => {
+      const date = parseDateMX(r[map.date]); if (!date) return;
+      const rawDesc = map.desc >= 0 ? r[map.desc] : '';
+      let amt, type;
+      if (mode === 'one') {
+        let v = parseMoneyMX(r[map.amount]); if (v === null || !v) return;
+        if (invert) v = -v;
+        type = v < 0 ? 'expense' : 'income'; amt = Math.abs(v);
+      } else {
+        const dv = parseMoneyMX(r[map.debit]), cv = parseMoneyMX(r[map.credit]);
+        if (dv) { type = 'expense'; amt = Math.abs(dv); } else if (cv) { type = 'income'; amt = Math.abs(cv); } else return;
+      }
+      amt = Math.round(amt * 100) / 100;
+      const n = normTxt(rawDesc);
+      const cardPay = type === 'income' && CARD_PAYMENT.test(n);
+      const dup = state.tx.some(t => t.date === date && t.type === type && Math.abs(t.amount - amt) < 0.01);
+      const c = categorize(rawDesc, type);
+      items.push({ i: idx, date, raw: rawDesc, desc: cleanDesc(rawDesc), amount: amt, type, cat: c.cat, sub: c.sub, dup, cardPay, include: !dup && !cardPay });
+    });
+    I.items = items.sort((a, b) => b.date.localeCompare(a.date));
+  };
+
+  const startImport = async file => {
+    const rows = parseCSV(await decodeFile(file));
+    if (rows.length < 2) return toast('El archivo está vacío o no es un CSV');
+    const det = detectColumns(rows);
+    const width = Math.max(...rows.map(r => r.length));
+    ui.imp = { name: file.name, rows, width, account: 'Débito', invert: false,
+      header: det ? det.header : 0, map: det ? det.map : { date: 0, desc: 1, amount: 2 }, mode: det ? det.mode : 'one', step: det ? 'review' : 'map' };
+    buildImportItems();
+    if (det && !ui.imp.items.length) ui.imp.step = 'map';
+    openSheet(importSheet());
+  };
+
+  const catOptions = it => {
+    const groups = it.type === 'income' ? CATS.income : CATS.expense;
+    return groups.map(c => c.subs
+      ? `<optgroup label="${esc(c.name)}"><option value="${c.id}" ${it.cat === c.id && !it.sub ? 'selected' : ''}>${esc(c.name)}</option>${c.subs.map(s => `<option value="${c.id}:${s.id}" ${it.cat === c.id && it.sub === s.id ? 'selected' : ''}>${esc(c.name)} · ${esc(s.name)}</option>`).join('')}</optgroup>`
+      : `<option value="${c.id}" ${it.cat === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+  };
+
+  const importSheet = () => {
+    const I = ui.imp;
+    if (I.step === 'map') {
+      const headers = I.rows[I.header] || [];
+      const opt = (field, allowNone) => `<select class="input" data-impmap="${field}">${allowNone ? `<option value="-1">— Ninguna —</option>` : ''}${Array.from({ length: I.width }, (_, j) => `<option value="${j}" ${I.map[field] === j ? 'selected' : ''}>${esc(headers[j] || 'Columna ' + (j + 1))}</option>`).join('')}</select>`;
+      const sample = (I.items || []).slice(0, 3);
+      return `${sheetHead('Columnas del archivo')}
+      <p class="lede" style="margin:-6px 0 14px">Indica qué columna es cada dato. DOMI lo recordará para este formato.</p>
+      <label><span class="field-label">Fila de encabezados</span><select class="input" data-impheader>${I.rows.slice(0, 25).map((r, k) => `<option value="${k}" ${I.header === k ? 'selected' : ''}>Fila ${k + 1}: ${esc(r.slice(0, 4).join(' · ').slice(0, 50))}</option>`).join('')}</select></label>
+      <div class="row2"><label><span class="field-label">Fecha</span>${opt('date')}</label><label><span class="field-label">Descripción</span>${opt('desc')}</label></div>
+      <span class="field-label">Montos</span>
+      <div class="seg" role="group"><button type="button" data-impmode="one" aria-pressed="${I.mode === 'one'}">Una columna</button><button type="button" data-impmode="two" aria-pressed="${I.mode === 'two'}">Cargo y abono</button></div>
+      ${I.mode === 'one' ? `<div class="row2" style="margin-top:10px"><label><span class="field-label">Importe</span>${opt('amount')}</label>
+        <button type="button" class="toggle-row" role="switch" aria-checked="${I.invert}" data-action="imp-invert" style="margin-top:28px"><span><b>Invertir signo</b><small>Si tus gastos salen positivos</small></span><span class="switch" aria-hidden="true" aria-checked="${I.invert}"></span></button></div>`
+      : `<div class="row2" style="margin-top:10px"><label><span class="field-label">Cargos (gastos)</span>${opt('debit', true)}</label><label><span class="field-label">Abonos (ingresos)</span>${opt('credit', true)}</label></div>`}
+      <span class="field-label">Vista previa</span>
+      <div class="imp-preview">${sample.length ? sample.map(it => `<div><span>${esc(it.date)} · ${esc(it.desc)}</span><b class="num ${it.type}">${it.type === 'income' ? '+' : '−'}${money(it.amount)}</b></div>`).join('') : '<div class="imp-none">No se reconocen movimientos con estas columnas.</div>'}</div>
+      <div class="sheet-actions"><button type="button" class="btn primary" data-action="imp-review" ${I.items.length ? '' : 'disabled'}>Ver ${I.items.length} movimientos</button></div>`;
+    }
+    const inc = I.items.filter(x => x.include);
+    const ge = inc.filter(x => x.type === 'expense'), gi = inc.filter(x => x.type === 'income');
+    const skipped = I.items.length - inc.length;
+    return `${sheetHead('Importar estado de cuenta')}
+    <p class="lede" style="margin:-6px 0 12px">${esc(I.name)} · ${I.items.length} movimientos encontrados</p>
+    <div class="imp-summary">
+      <span><b class="num">${ge.length}</b> ${ge.length === 1 ? 'gasto' : 'gastos'} · <b class="num">${money(sum(ge, x => x.amount), { compact: true })}</b></span>
+      <span><b class="num pos">${gi.length}</b> ${gi.length === 1 ? 'ingreso' : 'ingresos'} · <b class="num pos">${money(sum(gi, x => x.amount), { compact: true })}</b></span>
+      ${skipped ? `<span class="muted"><b>${skipped}</b> sin marcar</span>` : ''}
+    </div>
+    <div class="row2 imp-opts">
+      <label><span class="field-label">Cuenta</span><select class="input" data-impaccount>${ACCOUNTS.map(a => `<option ${a === I.account ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
+      <div><span class="field-label">Columnas</span><button type="button" class="btn block" data-action="imp-map" style="height:48px">Ajustar</button></div>
+    </div>
+    <div class="imp-bar"><button type="button" class="link" data-action="imp-all">${inc.length === I.items.length ? 'Desmarcar todo' : 'Marcar todo'}</button><span>Revisa la categoría de cada uno</span></div>
+    <ul class="imp-list">${I.items.map((it, k) => `<li class="imp-row ${it.include ? '' : 'off'}">
+      <button type="button" class="imp-check" data-impi="${k}" aria-pressed="${it.include}" aria-label="Incluir ${esc(it.desc)}">${icon("check", 2.6)}</button>
+      <div class="imp-main"><div class="imp-desc">${esc(it.desc)}</div>
+        <div class="imp-meta"><span>${esc(shortDate(it.date))}</span>
+          <label class="imp-catw">${icon((subOf(it) || cat(it.cat)).icon)}<span>${esc(subOf(it) ? subOf(it).name : cat(it.cat).name)}</span><select data-impcat="${k}" aria-label="Categoría de ${esc(it.desc)}">${catOptions(it)}</select></label>
+          ${it.dup ? '<span class="imp-flag">Posible duplicado</span>' : ''}${it.cardPay ? '<span class="imp-flag">Pago de tarjeta</span>' : ''}</div></div>
+      <div class="imp-amt num ${it.type}">${it.type === 'income' ? '+' : '−'}${money(it.amount)}</div>
+    </li>`).join('')}</ul>
+    <p class="inv-note">Los marcados como duplicado o pago de tarjeta no se importan a menos que los actives. Los pagos a tu tarjeta no son ingresos: solo mueven dinero entre tus cuentas.</p>
+    <div class="sheet-actions"><button type="button" class="btn ghost" data-action="close" style="flex:0 0 auto">Cancelar</button>
+      <button type="button" class="btn green" data-action="imp-commit" ${inc.length ? '' : 'disabled'}>Importar ${inc.length} ${inc.length === 1 ? 'movimiento' : 'movimientos'}</button></div>`;
+  };
+  const impRedraw = () => { const b = $('#sheetBody'), st = b.scrollTop; openSheet(importSheet()); b.scrollTop = st; };
+
+  const commitImport = () => {
+    const I = ui.imp, id = uid(), now = Date.now();
+    const chosen = I.items.filter(x => x.include);
+    state.rules = state.rules || {};
+    const added = chosen.map((it, k) => {
+      if (it.manual) state.rules[ruleKey(it.raw)] = { cat: it.cat, sub: it.sub };   // DOMI aprende tus correcciones
+      return { id: uid(), type: it.type, cat: it.cat, sub: it.sub, amount: it.amount, date: it.date, account: I.account, note: it.desc, receipt: null, reimb: null, created: now + k, importId: id };
+    });
+    state.tx.push(...added);
+    if (!save()) { state.tx.splice(-added.length); return; }
+    haptic(); closeSheet(); ui.imp = null;
+    if (added.length) ui.month = added.map(t => t.date).sort().at(-1).slice(0, 7);
+    location.hash = 'movimientos'; render();
+    toast(`${added.length} movimientos importados`, () => { state.tx = state.tx.filter(t => t.importId !== id); });
+  };
+
   // ---------- Exportar / importar ----------
   const download = (name, content, type) => {
     // Android (app): guarda en caché y abre el menú nativo de compartir
@@ -1015,7 +1232,7 @@
   window.addEventListener('scroll', () => $('#topbar').classList.toggle('scrolled', scrollY > 4), { passive: true });
 
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-action],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
+    const t = e.target.closest('[data-action],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
     if (!t) return;
     const a = t.dataset.action;
 
@@ -1042,6 +1259,9 @@
     if (t.dataset.op) { $$('[data-op]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
     // Patrimonio
     if (t.dataset.pat) { ui.pat = t.dataset.pat; return render(); }
+    // Importar estado de cuenta
+    if (t.dataset.impi !== undefined && ui.imp) { const it = ui.imp.items[+t.dataset.impi]; it.include = !it.include; return impRedraw(); }
+    if (t.dataset.impmode && ui.imp) { ui.imp.mode = t.dataset.impmode; if (ui.imp.mode === 'two') { ui.imp.map.debit ??= -1; ui.imp.map.credit ??= -1; } else ui.imp.map.amount ??= 0; buildImportItems(); return impRedraw(); }
     // Calendario
     if (t.dataset.hview) { ui.hview = t.dataset.hview; return render(); }
     if (t.dataset.day) { ui.calDay = t.dataset.day; render(); const det = $('.cal-detail'); if (det && innerWidth < 1000) det.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return; }
@@ -1082,6 +1302,12 @@
         state = { ...blank(), settings: state.settings }; save(); render(); return toast('Datos borrados');
       case 'budget': return openSheet(budgetForm());
       case 'goal': return openSheet(goalForm());
+      case 'stmt': return $('#stmtInput').click();
+      case 'imp-review': ui.imp.step = 'review'; return impRedraw();
+      case 'imp-map': ui.imp.step = 'map'; return impRedraw();
+      case 'imp-invert': ui.imp.invert = !ui.imp.invert; buildImportItems(); return impRedraw();
+      case 'imp-all': { const all = ui.imp.items.every(x => x.include); ui.imp.items.forEach(x => { x.include = !all; }); return impRedraw(); }
+      case 'imp-commit': return commitImport();
       case 'inv-new': ui.invType = null; ui.invDeduct = false; return openSheet(invForm());
       case 'inv-edit': ui.invType = null; return openSheet(invForm(t.dataset.id));
       case 'inv-deduct': ui.invDeduct = !ui.invDeduct; t.setAttribute('aria-checked', ui.invDeduct); t.querySelector('.switch').setAttribute('aria-checked', ui.invDeduct); return;
@@ -1129,6 +1355,10 @@
   });
   document.addEventListener('change', e => {
     if (e.target.id === 'catFilter') { ui.cat = e.target.value; render(); }
+    if (ui.imp && e.target.matches('[data-impcat]')) { const it = ui.imp.items[+e.target.dataset.impcat]; const [c, sb] = e.target.value.split(':'); it.cat = c; it.sub = sb || null; it.manual = true; return impRedraw(); }
+    if (ui.imp && e.target.matches('[data-impmap]')) { ui.imp.map[e.target.dataset.impmap] = +e.target.value; buildImportItems(); return impRedraw(); }
+    if (ui.imp && e.target.matches('[data-impheader]')) { ui.imp.header = +e.target.value; buildImportItems(); return impRedraw(); }
+    if (ui.imp && e.target.matches('[data-impaccount]')) { ui.imp.account = e.target.value; return; }
     if (e.target.id === 'setName') { state.settings.name = e.target.value.trim(); save(); toast('Nombre guardado'); }
     if (e.target.id === 'setCur') { state.settings.currency = e.target.value; save(); render(); toast('Moneda actualizada'); }
   });
@@ -1138,6 +1368,13 @@
     if (!f || !ui.draft) return;
     try { ui.draft.receipt = await compressImage(f); redrawTx(); }
     catch { toast('No se pudo leer la imagen'); }
+  });
+
+  $('#stmtInput').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    if (/\.(xlsx?|pdf)$/i.test(f.name)) return toast('Descarga el estado de cuenta en formato CSV desde tu banco');
+    try { await startImport(f); } catch (err) { toast('No se pudo leer el archivo'); }
   });
 
   $('#importInput').addEventListener('change', async e => {
@@ -1246,6 +1483,8 @@
   });
 
   // ---------- Arranque ----------
+  // Pide al sistema que no borre los datos de DOMI para liberar espacio
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* no soportado */ }
   route();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     if (!isNative) navigator.serviceWorker.register('sw.js').catch(() => {});

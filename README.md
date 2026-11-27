@@ -38,6 +38,7 @@ La página detecta el dispositivo y ofrece la descarga correcta.
 - **Movimientos** con categoría, cuenta, fecha y nota; búsqueda y filtros.
 - **Servicios y suscripciones detallados**: al elegir Servicios aparecen Luz, Agua, Gas, Internet, Celular, TV/Cable y Mantenimiento; en Suscripciones, Streaming, Música, Gimnasio, Apps, Nube y Videojuegos. Los límites muestran el desglose de cada uno.
 - **Recibos y reembolsos**: foto del ticket y gastos de trabajo *Por reembolsar → Reembolsado*.
+- **Importar estado de cuenta (CSV)**: lee el archivo de cualquier banco, detecta columnas, fechas y montos, categoriza solo (CFE, Telcel, Netflix, Uber, OXXO…), aprende tus correcciones, marca duplicados y excluye pagos a tarjeta.
 - **Calendario de gastos**: cada día se pinta según cuánto gastaste; toca un día para ver sus movimientos. Incluye día más caro, días sin gastar y promedio diario.
 - **Límites** por categoría con alertas al 80% y 100%.
 - **Patrimonio**: metas de ahorro e inversiones (CETES, fondos, acciones/ETF, AFORE, cripto, bienes raíces) con rendimiento, distribución y evolución. Aportar a una inversión no cuenta como gasto.
