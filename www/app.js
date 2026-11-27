@@ -52,6 +52,20 @@
     pulse: 'M3 12h4l2.5-5 4 10 2.5-5H21',
     ticket: 'M3 7h18v3.5a1.5 1.5 0 0 0 0 3V17H3v-3.5a1.5 1.5 0 0 0 0-3zM14 7v10',
     bolt: 'M13 2 4 14h7l-1 8 9-12h-7z',
+    // Servicios
+    drop: 'M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z',
+    flame: 'M12 22c3.9 0 7-2.8 7-6.6 0-4-2.9-6-4-9.4-1.6 1.9-2 3.6-2 5.1-1.4-.9-2.5-2.9-2.6-5.1C7.2 8 5 11.5 5 15.4 5 19.2 8.1 22 12 22z',
+    wifi: 'M2 8.8a15 15 0 0 1 20 0M5.2 12.3a10 10 0 0 1 13.6 0M8.6 15.8a5 5 0 0 1 6.8 0M12 19.5h.01',
+    phone: 'M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zM11 18h2',
+    tv: 'M3 7h18v12H3zM8 3l4 4 4-4',
+    wrench: 'M14.5 4.2a5 5 0 0 0-5.3 6.9L3 17.3 6.7 21l6.2-6.2a5 5 0 0 0 6.9-5.3l-3 3-3.3-.9-.9-3.3z',
+    // Suscripciones
+    play: 'M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM10 9.5v5l4.5-2.5z',
+    music: 'M9 18V5.5l11-2V16M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+    dumbbell: 'M6.5 6.5v11M17.5 6.5v11M3.5 9.5v5M20.5 9.5v5M6.5 12h11',
+    grid: 'M4 4h6.5v6.5H4zM13.5 4H20v6.5h-6.5zM4 13.5h6.5V20H4zM13.5 13.5H20V20h-6.5z',
+    cloud: 'M7 19a4.5 4.5 0 0 1-.8-8.9A6 6 0 0 1 17.8 9 4.9 4.9 0 0 1 17.5 19z',
+    gamepad: 'M7 8h10a4.5 4.5 0 0 1 4.5 4.5v.5a4 4 0 0 1-7 2.6L13.5 14h-3l-1 1.6a4 4 0 0 1-7-2.6v-.5A4.5 4.5 0 0 1 7 8zM8 10.5v4M6 12.5h4M15.5 11.5h.01M17.5 13.5h.01',
     book: 'M4 19V5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2zM20 19v2H6',
     repeat: 'M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3',
     plane: 'M2 13l20-8-6 16-4-6zM12 15l4-5',
@@ -71,10 +85,27 @@
       { id: 'transporte', name: 'Transporte', icon: 'car', color: '#3bff8a' },
       { id: 'hogar', name: 'Hogar', icon: 'house', color: 'var(--cat-ink)' },
       { id: 'compras', name: 'Compras', icon: 'bag', color: '#8aa5ff' },
-      { id: 'servicios', name: 'Servicios', icon: 'bolt', color: '#1f9e57' },
+      { id: 'servicios', name: 'Servicios', icon: 'bolt', color: '#1f9e57', subs: [
+        { id: 'luz', name: 'Luz', icon: 'bolt' },
+        { id: 'agua', name: 'Agua', icon: 'drop' },
+        { id: 'gas', name: 'Gas', icon: 'flame' },
+        { id: 'internet', name: 'Internet', icon: 'wifi' },
+        { id: 'celular', name: 'Celular', icon: 'phone' },
+        { id: 'tv', name: 'TV / Cable', icon: 'tv' },
+        { id: 'mantenimiento', name: 'Mantenimiento', icon: 'wrench' },
+        { id: 'otro-servicio', name: 'Otro', icon: 'dots' }
+      ] },
       { id: 'salud', name: 'Salud', icon: 'pulse', color: '#9a9a9e' },
       { id: 'ocio', name: 'Ocio', icon: 'ticket', color: '#a6ffcb' },
-      { id: 'suscripciones', name: 'Suscripciones', icon: 'repeat', color: '#2238a8' },
+      { id: 'suscripciones', name: 'Suscripciones', icon: 'repeat', color: '#2238a8', subs: [
+        { id: 'streaming', name: 'Streaming', icon: 'play' },
+        { id: 'musica', name: 'Música', icon: 'music' },
+        { id: 'gimnasio', name: 'Gimnasio', icon: 'dumbbell' },
+        { id: 'apps', name: 'Apps', icon: 'grid' },
+        { id: 'nube', name: 'Nube', icon: 'cloud' },
+        { id: 'videojuegos', name: 'Videojuegos', icon: 'gamepad' },
+        { id: 'otra-suscripcion', name: 'Otra', icon: 'dots' }
+      ] },
       { id: 'educacion', name: 'Educación', icon: 'book', color: 'var(--cat-ink-2)' },
       { id: 'viajes', name: 'Viajes', icon: 'plane', color: '#5b5b60' },
       { id: 'otros', name: 'Otros', icon: 'dots', color: '#3a3a3e' }
@@ -90,6 +121,9 @@
   };
   const ALL_CATS = [...CATS.expense, ...CATS.income];
   const cat = id => ALL_CATS.find(c => c.id === id) || CATS.expense.at(-1);
+  // Subcategoría (p. ej. Servicios → Luz). Devuelve null si la categoría no tiene o no se eligió.
+  const subOf = t => { const c = cat(t.cat); return (c.subs && t.sub && c.subs.find(s => s.id === t.sub)) || null; };
+  const txLabel = t => { const s = subOf(t); return s ? `${s.name} · ${cat(t.cat).name}` : cat(t.cat).name; };
   const ACCOUNTS = ['Débito', 'Crédito', 'Efectivo', 'Transferencia'];
   const CURRENCIES = { MXN: 'es-MX', USD: 'en-US', EUR: 'es-ES', COP: 'es-CO', ARS: 'es-AR', CLP: 'es-CL', PEN: 'es-PE' };
 
@@ -230,14 +264,15 @@
 
   // ---------- Componentes ----------
   const txRow = t => {
-    const c = cat(t.cat);
+    const c = cat(t.cat), s = subOf(t);
+    const title = t.note || (s ? s.name : c.name);
     const flags = (t.receipt ? icon('receipt') : '');
     const status = t.reimb ? `<span class="status ${t.reimb === 'done' ? 'done' : ''}">${t.reimb === 'done' ? 'Reembolsado' : 'Por reembolsar'}</span>` : '';
-    return `<li class="tx" data-edit="${t.id}" tabindex="0" role="button" aria-label="Editar ${esc(t.note || c.name)}">
-      <div class="tx-ico ${t.type}">${icon(c.icon)}</div>
+    return `<li class="tx" data-edit="${t.id}" tabindex="0" role="button" aria-label="Editar ${esc(title)}">
+      <div class="tx-ico ${t.type}">${icon(s ? s.icon : c.icon)}</div>
       <div class="tx-main">
-        <div class="tx-title">${esc(t.note || c.name)}${flags ? `<span class="tx-flags">${flags}</span>` : ''}</div>
-        <div class="tx-meta"><span>${esc(c.name)} · ${esc(t.account)}</span>${status}</div>
+        <div class="tx-title">${esc(title)}${flags ? `<span class="tx-flags">${flags}</span>` : ''}</div>
+        <div class="tx-meta"><span>${esc(txLabel(t))} · ${esc(t.account)}</span>${status}</div>
       </div>
       <div class="tx-amt num ${t.type}">${t.type === 'income' ? '+' : '−'}${money(t.amount)}</div>
     </li>`;
@@ -366,7 +401,7 @@
     if (ui.type === 'reimb') list = state.tx.filter(t => t.reimb);
     else if (ui.type !== 'all') list = list.filter(t => t.type === ui.type);
     if (ui.cat !== 'all') list = list.filter(t => t.cat === ui.cat);
-    if (q) list = list.filter(t => (t.note + ' ' + cat(t.cat).name + ' ' + t.account).toLowerCase().includes(q));
+    if (q) list = list.filter(t => (t.note + ' ' + txLabel(t) + ' ' + t.account).toLowerCase().includes(q));
     const { inc, exp, bal } = totals(list);
     const groups = {};
     sorted(list).forEach(t => (groups[t.date] = groups[t.date] || []).push(t));
@@ -410,11 +445,20 @@
         <div><div class="eyebrow">Disponible</div><div class="big num">${money(Math.max(totalB - totalS, 0), { compact: true })}</div><p class="lede" style="margin-top:4px">${money(totalS, { compact: true })} de ${money(totalB, { compact: true })} usados</p></div></div></section>
       <section class="card">${entries.sort((a, b) => ((spent[b[0]] || 0) / b[1]) - ((spent[a[0]] || 0) / a[1])).map(([id, b]) => {
         const c = cat(id), s = spent[id] || 0, p = (s / b) * 100, l = level(p);
+        // Desglose por subcategoría (p. ej. Servicios: Luz, Agua, Internet…)
+        let breakdown = '';
+        if (c.subs) {
+          const by = {};
+          list.filter(t => t.type === 'expense' && t.cat === id).forEach(t => { const k = subOf(t)?.name || 'Sin especificar'; by[k] = (by[k] || 0) + t.amount; });
+          const parts = Object.entries(by).sort((x, y) => y[1] - x[1]);
+          if (parts.length) breakdown = `<div class="sub-break">${parts.map(([n, v]) => `<span>${esc(n)} <b class="num">${money(v, { compact: true })}</b></span>`).join('')}</div>`;
+        }
         return `<div class="budget" data-budget="${id}" role="button" tabindex="0">
           <div class="budget-top"><div class="tx-ico">${icon(c.icon)}</div><div><div class="tx-title">${esc(c.name)}</div><div class="tx-meta num">${money(s, { compact: true })} de ${money(b, { compact: true })}</div></div>
           <span class="tag ${l}">${l === 'over' ? 'EXCEDIDO' : l === 'warn' ? pctFmt(p) : pctFmt(p)}</span></div>
           <div class="bar ${l}"><i style="width:${Math.min(p, 100)}%"></i></div>
           <div class="budget-foot"><span>${s > b ? `Te pasaste ${money(s - b, { compact: true })}` : `Quedan ${money(b - s, { compact: true })}`}</span><span>${ui.month === ym(new Date()) ? `${daysIn(ui.month) - new Date().getDate()} días restantes` : ''}</span></div>
+          ${breakdown}
         </div>`;
       }).join('')}</section></div>`
     : `<div class="card empty"><div class="glyph">${icon('pie')}</div><h3>Sin límites definidos</h3><p>Ponle tope a tus categorías más caras y mantén el control sin pensar.</p><div class="actions"><button class="btn green" data-action="budget">${icon('plus', 2.2)}Crear primer límite</button></div></div>`}`;
@@ -496,11 +540,15 @@
         <input name="amount" inputmode="decimal" placeholder="0" value="${d.amount ? d.amount : ''}" required></label>
       <span class="field-label">Categoría</span>
       <div class="chips">${cats.map(c => `<button type="button" class="chip" data-cat="${c.id}" aria-pressed="${d.cat === c.id}">${icon(c.icon)}${c.name}</button>`).join('')}</div>
+      ${cat(d.cat).subs ? `<div class="subcats" role="group" aria-label="Tipo de ${esc(cat(d.cat).name.toLowerCase())}">
+        <span class="field-label">¿Qué ${{ servicios: 'servicio', suscripciones: 'suscripción' }[d.cat] || 'tipo'}?</span>
+        <div class="sub-chips">${cat(d.cat).subs.map(s => `<button type="button" class="sub-chip" data-sub="${s.id}" aria-pressed="${d.sub === s.id}">${icon(s.icon)}${s.name}</button>`).join('')}</div>
+      </div>` : ''}
       <div class="row2" style="margin-top:6px">
         <label><span class="field-label">Fecha</span><input class="input" type="date" name="date" value="${d.date}" required></label>
         <label><span class="field-label">Cuenta</span><select class="input" name="account">${ACCOUNTS.map(a => `<option ${a === d.account ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
       </div>
-      <label><span class="field-label">Nota</span><input class="input" name="note" maxlength="60" placeholder="${d.type === 'expense' ? 'Ej. Súper de la semana' : 'Ej. Quincena'}" value="${esc(d.note || '')}"></label>
+      <label><span class="field-label">Nota</span><input class="input" name="note" maxlength="60" placeholder="${d.type === 'income' ? 'Ej. Quincena' : d.cat === 'suscripciones' ? 'Ej. Netflix, Spotify, Smart Fit' : d.cat === 'servicios' ? 'Ej. Recibo CFE bimestral' : 'Ej. Súper de la semana'}" value="${esc(d.note || '')}"></label>
       ${d.type === 'expense' ? `
       <span class="field-label">Comprobante</span>
       <button type="button" class="receipt-drop" data-action="receipt">
@@ -618,8 +666,8 @@
     const list = ui.view === 'movimientos' && ui.type === 'reimb' ? state.tx.filter(t => t.reimb) : inMonth();
     if (!list.length) return toast('No hay movimientos para exportar en este periodo.');
     const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = [['Fecha', 'Tipo', 'Categoría', 'Cuenta', 'Nota', 'Monto', 'Moneda', 'Reembolso', 'Recibo']]
-      .concat(sorted(list).map(t => [t.date, t.type === 'income' ? 'Ingreso' : 'Gasto', cat(t.cat).name, t.account, t.note, (t.type === 'income' ? 1 : -1) * t.amount, state.settings.currency, t.reimb === 'done' ? 'Reembolsado' : t.reimb ? 'Pendiente' : '', t.receipt ? 'Sí' : '']));
+    const rows = [['Fecha', 'Tipo', 'Categoría', 'Subcategoría', 'Cuenta', 'Nota', 'Monto', 'Moneda', 'Reembolso', 'Recibo']]
+      .concat(sorted(list).map(t => [t.date, t.type === 'income' ? 'Ingreso' : 'Gasto', cat(t.cat).name, subOf(t)?.name || '', t.account, t.note, (t.type === 'income' ? 1 : -1) * t.amount, state.settings.currency, t.reimb === 'done' ? 'Reembolsado' : t.reimb ? 'Pendiente' : '', t.receipt ? 'Sí' : '']));
     download(`domi-${ui.type === 'reimb' ? 'reembolsos' : ui.month}.csv`, '﻿' + rows.map(r => r.map(q).join(',')).join('\n'), 'text/csv;charset=utf-8');
     toast('Reporte exportado');
   };
@@ -638,10 +686,15 @@
       if (last >= 15) add(D(15), 'income', 'salario', 18500, 'Quincena');
       if (last >= 10) add(D(10), 'income', 'freelance', rnd(3500, 7000), 'Proyecto de branding', 'Transferencia');
       add(D(2), 'expense', 'hogar', 9800, 'Renta', 'Transferencia');
-      add(D(3), 'expense', 'suscripciones', 219, 'Spotify', 'Crédito');
-      add(D(4), 'expense', 'suscripciones', 299, 'Netflix', 'Crédito');
-      if (last >= 6) add(D(6), 'expense', 'servicios', rnd(380, 520), 'Luz', 'Débito');
-      if (last >= 8) add(D(8), 'expense', 'servicios', 599, 'Internet', 'Débito');
+      add(D(3), 'expense', 'suscripciones', 219, 'Spotify', 'Crédito', { sub: 'musica' });
+      add(D(3), 'expense', 'suscripciones', 650, 'Smart Fit', 'Débito', { sub: 'gimnasio' });
+      add(D(4), 'expense', 'suscripciones', 299, 'Netflix', 'Crédito', { sub: 'streaming' });
+      add(D(5), 'expense', 'suscripciones', 49, 'iCloud', 'Crédito', { sub: 'nube' });
+      if (last >= 6) add(D(6), 'expense', 'servicios', rnd(380, 520), '', 'Débito', { sub: 'luz' });
+      if (last >= 7) add(D(7), 'expense', 'servicios', rnd(160, 240), '', 'Débito', { sub: 'agua' });
+      if (last >= 8) add(D(8), 'expense', 'servicios', 599, '', 'Débito', { sub: 'internet' });
+      if (last >= 11) add(D(11), 'expense', 'servicios', 349, '', 'Crédito', { sub: 'celular' });
+      if (last >= 14) add(D(14), 'expense', 'servicios', rnd(280, 420), '', 'Efectivo', { sub: 'gas' });
       for (let d = 1; d <= last; d++) {
         if (Math.random() < 0.55) add(D(d), 'expense', 'comida', rnd(85, 420), ['Café', 'Comida', 'Súper', 'Tacos', 'Cena'][d % 5], d % 3 ? 'Débito' : 'Efectivo');
         if (Math.random() < 0.3) add(D(d), 'expense', 'transporte', rnd(45, 260), d % 2 ? 'Uber' : 'Gasolina', 'Crédito');
@@ -651,7 +704,7 @@
       if (last >= 12) add(D(12), 'expense', 'salud', rnd(400, 900), 'Consulta', 'Débito');
       if (last >= 18) add(D(18), 'expense', 'viajes', rnd(1200, 2600), 'Comida con cliente', 'Crédito', { reimb: m === 0 ? 'pending' : 'done' });
     }
-    state = { ...state, tx, budgets: { comida: 6000, transporte: 2500, compras: 2500, ocio: 1500, suscripciones: 600 },
+    state = { ...state, tx, budgets: { comida: 6000, servicios: 2200, transporte: 2500, compras: 2500, ocio: 1500, suscripciones: 1400 },
       goals: [
         { id: uid(), name: 'Fondo de emergencia', target: 60000, saved: 38500, deadline: `${now.getFullYear() + 1}-03-01` },
         { id: uid(), name: 'Viaje a Japón', target: 45000, saved: 12800, deadline: `${now.getFullYear() + 1}-10-01` },
@@ -672,13 +725,24 @@
   window.addEventListener('scroll', () => $('#topbar').classList.toggle('scrolled', scrollY > 4), { passive: true });
 
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-action],[data-edit],[data-type],[data-cat],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
+    const t = e.target.closest('[data-action],[data-edit],[data-type],[data-cat],[data-sub],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
     if (!t) return;
     const a = t.dataset.action;
 
     if (t.dataset.edit) return openTx(t.dataset.edit);
     if (t.dataset.type && ui.draft) { ui.draft.type = t.dataset.type; if (t.dataset.type === 'income') { ui.draft.reimb = null; ui.draft.receipt = null; } return redrawTx(); }
-    if (t.dataset.cat && ui.draft) { ui.draft.cat = t.dataset.cat; $$('.chip').forEach(c => c.setAttribute('aria-pressed', c === t)); return; }
+    if (t.dataset.cat && ui.draft) {
+      const changed = ui.draft.cat !== t.dataset.cat;
+      ui.draft.cat = t.dataset.cat;
+      if (changed) ui.draft.sub = null;
+      // Si la categoría tiene subcategorías (Servicios), se redibuja para mostrarlas
+      if (changed && (cat(t.dataset.cat).subs || $('.subcats'))) return redrawTx();
+      $$('.chip').forEach(c => c.setAttribute('aria-pressed', c === t)); return;
+    }
+    if (t.dataset.sub && ui.draft) {
+      ui.draft.sub = ui.draft.sub === t.dataset.sub ? null : t.dataset.sub;
+      $$('.sub-chip').forEach(c => c.setAttribute('aria-pressed', c.dataset.sub === ui.draft.sub)); return;
+    }
     if (t.dataset.filterType) { ui.type = t.dataset.filterType; return render(); }
     if (t.dataset.budget) return openSheet(budgetForm(t.dataset.budget));
     if (t.dataset.budgetDel) { const id = t.dataset.budgetDel, prev = state.budgets[id]; delete state.budgets[id]; save(); closeSheet(); render(); return toast('Límite eliminado', () => { state.budgets[id] = prev; }); }
@@ -772,7 +836,7 @@
       syncDraft();
       const d = ui.draft, amount = parseAmount(d.amount);
       if (!amount) { f.amount.focus(); return toast('Escribe un monto mayor a cero'); }
-      const rec = { id: d.id || uid(), type: d.type, cat: d.cat, amount, date: d.date || today(), account: d.account, note: d.note.trim(), receipt: d.type === 'expense' ? d.receipt : null, reimb: d.type === 'expense' ? d.reimb : null, created: d.created || Date.now() };
+      const rec = { id: d.id || uid(), type: d.type, cat: d.cat, sub: cat(d.cat).subs ? (d.sub || null) : null, amount, date: d.date || today(), account: d.account, note: d.note.trim(), receipt: d.type === 'expense' ? d.receipt : null, reimb: d.type === 'expense' ? d.reimb : null, created: d.created || Date.now() };
       const i = state.tx.findIndex(x => x.id === rec.id);
       const before = i >= 0 ? state.tx[i] : null;
       if (i >= 0) state.tx[i] = rec; else state.tx.push(rec);

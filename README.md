@@ -1,3 +1,31 @@
+<p align="center">
+  <img src="docs/banner.jpg" alt="DOMI · Tu dinero. Bajo tu dominio." width="100%">
+</p>
+
+<h3 align="center">Descarga DOMI</h3>
+
+<p align="center">
+  <a href="https://github.com/aloshkagarcia-designer/DOMI-/releases/latest/download/DOMI-mac.dmg"><img src="docs/botones/mac.png" alt="Descargar para Mac" height="56"></a>
+  <a href="https://github.com/aloshkagarcia-designer/DOMI-/releases/latest/download/DOMI-windows.exe"><img src="docs/botones/windows.png" alt="Descargar para Windows" height="56"></a>
+  <a href="https://github.com/aloshkagarcia-designer/DOMI-/releases/latest/download/DOMI-android.apk"><img src="docs/botones/android.png" alt="Descargar para Android" height="56"></a>
+  <a href="https://aloshkagarcia-designer.github.io/DOMI-/app/"><img src="docs/botones/iphone.png" alt="Instalar en iPhone" height="56"></a>
+</p>
+
+<p align="center">
+  <b>Mac</b> 11+ · Apple Silicon e Intel &nbsp;·&nbsp; <b>Windows</b> 10 y 11 &nbsp;·&nbsp; <b>Android</b> 6+ &nbsp;·&nbsp; <b>iPhone</b> desde Safari → Compartir → Agregar a inicio<br>
+  <a href="https://aloshkagarcia-designer.github.io/DOMI-/">Página de descarga</a> · <a href="https://github.com/aloshkagarcia-designer/DOMI-/releases">Todas las versiones</a>
+</p>
+
+<p align="center">
+  <img src="docs/pantallas.jpg" alt="Pantallas de DOMI: resumen, nuevo gasto, movimientos y límites" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/escritorio.jpg" alt="DOMI en escritorio" width="100%">
+</p>
+
+---
+
 # DOMI · Finanzas personales
 
 App de control de gastos personales para **Mac, Windows, Android e iPhone**. Estética premium negro y blanco con acentos en azul eléctrico y verde fósforo.
@@ -8,6 +36,7 @@ La página detecta el dispositivo y ofrece la descarga correcta.
 ## Funciones
 - **Resumen**: balance del mes, tasa de ahorro, ritmo de gasto, gasto por categoría, comparativo de 6 meses y proyección al cierre.
 - **Movimientos** con categoría, cuenta, fecha y nota; búsqueda y filtros.
+- **Servicios y suscripciones detallados**: al elegir Servicios aparecen Luz, Agua, Gas, Internet, Celular, TV/Cable y Mantenimiento; en Suscripciones, Streaming, Música, Gimnasio, Apps, Nube y Videojuegos. Los límites muestran el desglose de cada uno.
 - **Recibos y reembolsos**: foto del ticket y gastos de trabajo *Por reembolsar → Reembolsado*.
 - **Límites** por categoría con alertas al 80% y 100%. **Metas de ahorro** con abonos y retiros.
 - **Ajustes**: moneda, modo claro/oscuro, reporte CSV, respaldo e importación.

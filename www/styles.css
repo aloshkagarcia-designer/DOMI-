@@ -608,3 +608,23 @@ input, select, textarea, .input, .search input { font-size: 16px; }
 @media (min-width: 1360px) {
   .donut-wrap { grid-template-columns: 140px 1fr; justify-items: stretch; }
 }
+
+/* ---------- Subcategorías (p. ej. Servicios → Luz, Agua…) ---------- */
+.subcats { margin-top: 4px; padding: 2px 0 4px; animation: up .25s cubic-bezier(.2, .9, .25, 1); }
+.sub-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sub-chip {
+  display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px 0 11px;
+  border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface);
+  font-size: 13px; font-weight: 600; color: var(--text-2); white-space: nowrap;
+  -webkit-user-select: none; user-select: none;
+}
+.sub-chip svg { width: 16px; height: 16px; }
+.sub-chip[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+.sub-chip[aria-pressed="true"] svg { color: var(--green); }
+:root[data-theme="light"] .sub-chip[aria-pressed="true"] svg { color: #3bff8a; }
+.sub-break { display: flex; flex-wrap: wrap; gap: 6px; }
+.sub-break span {
+  display: inline-flex; gap: 6px; align-items: baseline; padding: 5px 10px; border-radius: 99px;
+  background: var(--surface-2); border: 1px solid var(--line); font-size: 12px; color: var(--muted);
+}
+.sub-break b { color: var(--text); font-weight: 650; }
