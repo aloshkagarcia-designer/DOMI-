@@ -35,6 +35,7 @@
     pie: 'M21 12a9 9 0 1 1-9-9v9zM15 3.5A9 9 0 0 1 20.5 9H15z',
     gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
     plus: 'M12 5v14M5 12h14',
+    calendar: 'M4 6h16v15H4zM4 10h16M8 3v4M16 3v4',
     x: 'M18 6 6 18M6 6l12 12',
     search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',
     trash: 'M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14',
@@ -445,6 +446,60 @@
     </div>`;
   };
 
+  // ---------- Calendario de gastos ----------
+  const kfmt = n => {
+    const s = curSymbol();
+    if (n >= 1e6) return `${s}${(n / 1e6).toFixed(1).replace('.0', '')}M`;
+    if (n >= 1000) return `${s}${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace('.0', '')}k`;
+    return `${s}${Math.round(n)}`;
+  };
+  const calendarBlock = () => {
+    const m = ui.month, n = daysIn(m), list = inMonth(m);
+    const exp = Array(n + 1).fill(0), inc = Array(n + 1).fill(0), count = Array(n + 1).fill(0);
+    list.forEach(t => { const d = +t.date.slice(8); count[d]++; if (t.type === 'expense') exp[d] += t.amount; if (t.type === 'income') inc[d] += t.amount; });
+    const isCur = m === ym(new Date()), td = new Date().getDate();
+    const elapsed = isCur ? td : n;
+    // Intensidad por cuartiles: un gasto extremo (p. ej. la renta) no apaga el resto del mes
+    const qs = exp.slice(1).filter(Boolean).sort((a, b) => a - b);
+    const q = p => qs.length ? qs[Math.min(qs.length - 1, Math.floor(p * qs.length))] : 0;
+    const [q1, q2, q3] = [q(0.25), q(0.5), q(0.75)];
+    let topDay = 0; for (let d = 1; d <= n; d++) if (exp[d] > exp[topDay]) topDay = d;
+    const zero = Array.from({ length: elapsed }, (_, i) => i + 1).filter(d => !exp[d]).length;
+    const total = sum(exp);
+    // Día seleccionado: el que tocaste, o hoy si estás en el mes actual
+    let sel = ui.calDay && ui.calDay.startsWith(m) ? +ui.calDay.slice(8) : (isCur ? td : null);
+    const first = (parseYM(m).getDay() + 6) % 7;   // semana inicia en lunes
+    const cells = [];
+    for (let i = 0; i < first; i++) cells.push('<div class="cal-cell blank" aria-hidden="true"></div>');
+    for (let d = 1; d <= n; d++) {
+      const future = isCur && d > td, v = exp[d];
+      const lvl = !v ? 0 : v < q1 ? 1 : v < q2 ? 2 : v < q3 ? 3 : 4;
+      const date = `${m}-${pad(d)}`;
+      cells.push(`<button type="button" class="cal-cell l${lvl}${future ? ' future' : ''}${isCur && d === td ? ' today' : ''}${sel === d ? ' sel' : ''}" data-day="${date}" aria-label="${d}: ${exp[d] ? 'gastaste ' + money(exp[d]) : 'sin gastos'}${inc[d] ? ', ingreso ' + money(inc[d]) : ''}" aria-pressed="${sel === d}">
+        <span class="cal-d">${d}</span>${exp[d] ? `<span class="cal-amt num">${kfmt(exp[d])}</span>` : future || !count[d] ? '' : '<span class="cal-amt zero">—</span>'}${inc[d] ? '<i class="cal-inc" aria-hidden="true"></i>' : ''}
+      </button>`);
+    }
+    const selDate = sel ? `${m}-${pad(sel)}` : null;
+    const items = selDate ? sorted(list.filter(t => t.date === selDate)) : [];
+    const selNet = sum(items, signed);
+    const detail = !selDate ? '<p class="lede cal-hint">Toca un día para ver sus movimientos.</p>'
+      : `<div class="day-head cal-day-head"><span class="eyebrow">${esc(dayLabel(selDate))}</span>${items.length ? `<span class="num">${selNet >= 0 ? '+' : '−'}${money(Math.abs(selNet))}</span>` : ''}</div>
+        ${items.length ? `<ul class="tx-list">${items.map(txRow).join('')}</ul>` : `<div class="cal-empty">${isCur && sel > td ? 'Este día aún no llega.' : `<b>Día sin gastos.</b> Bien hecho.`}</div>`}`;
+    return `<div class="summary-row">
+      <div class="card"><div class="eyebrow">Día más caro</div><strong class="num">${topDay ? kfmt(exp[topDay]) : '—'}</strong><small class="cal-sub">${topDay ? `${topDay} ${monthShort(m)}` : 'Sin gastos'}</small></div>
+      <div class="card"><div class="eyebrow">Sin gastar</div><strong class="num pos">${zero}</strong><small class="cal-sub">de ${elapsed} días</small></div>
+      <div class="card"><div class="eyebrow">Promedio</div><strong class="num">${kfmt(total / elapsed)}</strong><small class="cal-sub">por día</small></div>
+    </div>
+    <div class="grid cal-grid-wrap">
+      <section class="card cal-card" aria-label="Calendario de ${esc(monthName(m))}">
+        <div class="cal-week" aria-hidden="true">${['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(x => `<span>${x}</span>`).join('')}</div>
+        <div class="cal-grid">${cells.join('')}</div>
+        <div class="cal-legend"><span>Menos</span>${[0, 1, 2, 3, 4].map(l => `<i class="cal-sw l${l}"></i>`).join('')}<span>Más</span><span class="cal-legend-inc"><i class="cal-inc"></i>Ingreso</span></div>
+      </section>
+      <section class="card cal-detail">${detail}</section>
+    </div>`;
+  };
+
   const viewMovimientos = () => {
     let list = inMonth();
     const q = ui.q.trim().toLowerCase();
@@ -457,8 +512,16 @@
     sorted(list).forEach(t => (groups[t.date] = groups[t.date] || []).push(t));
     const pill = (v, l) => `<button class="pill" data-filter-type="${v}" aria-pressed="${ui.type === v}">${l}</button>`;
 
-    return `<div class="page-head"><div><div class="eyebrow">${ui.type === 'reimb' ? 'Todos los meses' : esc(monthName(ui.month))}</div><h1 class="h1">Movimientos<span>.</span></h1></div>
+    const cal = ui.hview === 'cal';
+    const head = `<div class="page-head"><div><div class="eyebrow">${ui.type === 'reimb' && !cal ? 'Todos los meses' : esc(monthName(ui.month))}</div><h1 class="h1">Movimientos<span>.</span></h1></div>
       <button class="btn sm" data-action="export-csv">${icon('download')}Exportar reporte</button></div>
+    <div class="seg hview" role="tablist" aria-label="Vista">
+      <button type="button" role="tab" data-hview="list" aria-pressed="${!cal}" aria-selected="${!cal}">${icon('list')}Lista</button>
+      <button type="button" role="tab" data-hview="cal" aria-pressed="${cal}" aria-selected="${cal}">${icon('calendar')}Calendario</button>
+    </div>`;
+    if (cal) return head + calendarBlock();
+
+    return `${head}
     <div class="toolbar">
       <label class="search">${icon('search')}<span class="sr-only">Buscar</span><input id="q" type="search" placeholder="Buscar por nota, categoría o cuenta" value="${esc(ui.q)}" autocomplete="off"></label>
       <div class="filters">${pill('all', 'Todos')}${pill('expense', 'Gastos')}${pill('income', 'Ingresos')}${pill('reimb', 'Reembolsables')}
@@ -867,7 +930,7 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   const exportCSV = () => {
-    const list = ui.view === 'movimientos' && ui.type === 'reimb' ? state.tx.filter(t => t.reimb) : inMonth();
+    const list = ui.view === 'movimientos' && ui.type === 'reimb' && ui.hview !== 'cal' ? state.tx.filter(t => t.reimb) : inMonth();
     if (!list.length) return toast('No hay movimientos para exportar en este periodo.');
     const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [['Fecha', 'Tipo', 'Categoría', 'Subcategoría', 'Cuenta', 'Nota', 'Monto', 'Moneda', 'Reembolso', 'Recibo']]
@@ -952,7 +1015,7 @@
   window.addEventListener('scroll', () => $('#topbar').classList.toggle('scrolled', scrollY > 4), { passive: true });
 
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-action],[data-edit],[data-type],[data-cat],[data-sub],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
+    const t = e.target.closest('[data-action],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
     if (!t) return;
     const a = t.dataset.action;
 
@@ -979,6 +1042,9 @@
     if (t.dataset.op) { $$('[data-op]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
     // Patrimonio
     if (t.dataset.pat) { ui.pat = t.dataset.pat; return render(); }
+    // Calendario
+    if (t.dataset.hview) { ui.hview = t.dataset.hview; return render(); }
+    if (t.dataset.day) { ui.calDay = t.dataset.day; render(); const det = $('.cal-detail'); if (det && innerWidth < 1000) det.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return; }
     if (t.dataset.inv) { ui.invOp = 'add'; return openSheet(invSheet(t.dataset.inv)); }
     if (t.dataset.invop) {
       const f = $('#invMoveForm'); const amt = f ? f.amount.value : '';
