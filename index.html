@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>DOMI · Finanzas personales</title>
+  <meta name="description" content="Controla tus gastos, presupuestos y metas de ahorro. Privado, rápido y sin anuncios." />
+  <meta name="theme-color" content="#050505" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="DOMI" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="format-detection" content="telephone=no" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;650;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    try { var t = JSON.parse(localStorage.getItem("domi.v1") || localStorage.getItem("fosforo.v1") || "{}"); if (t.settings && t.settings.theme) document.documentElement.dataset.theme = t.settings.theme; } catch (e) {}
+  </script>
+</head>
+<body>
+  <div class="app">
+    <main class="main">
+      <header class="topbar" id="topbar">
+        <a class="brand" href="#inicio" aria-label="DOMI, inicio">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="currentColor" opacity=".08"/><path d="M10.5 8.5h4.75a7.5 7.5 0 0 1 0 15H10.5z" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round" fill="none"/><circle cx="16.5" cy="16" r="2.4" fill="#3bff8a"/></svg>
+          <span class="brand-word">DOMI<i>.</i></span>
+        </a>
+        <div class="month" id="monthSwitch">
+          <button data-action="month" data-dir="-1" aria-label="Mes anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg></button>
+          <span id="monthLabel" aria-live="polite"></span>
+          <button data-action="month" data-dir="1" aria-label="Mes siguiente"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+        </div>
+      </header>
+      <div id="view"></div>
+    </main>
+  </div>
+
+  <nav class="tabbar" id="tabbar" aria-label="Navegación"></nav>
+
+  <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
+    <div class="sheet-inner" id="sheetBody"></div>
+  </dialog>
+
+  <input type="file" id="receiptInput" accept="image/*" hidden />
+  <input type="file" id="importInput" accept="application/json" hidden />
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
