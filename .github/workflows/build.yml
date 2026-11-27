@@ -79,14 +79,28 @@ jobs:
         working-directory: android
         env:
           DOMI_VERSION_CODE: ${{ github.run_number }}
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          DOMI_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           export DOMI_VERSION_NAME="${DOMI_VERSION_NAME#v}"
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$DOMI_KEYSTORE_PASSWORD" ]; then
+            # Versión firmada con la llave privada de DOMI (la que se publica)
+            export DOMI_KEYSTORE_PATH="$RUNNER_TEMP/domi-release.p12"
+            echo "$KEYSTORE_B64" | base64 -d > "$DOMI_KEYSTORE_PATH"
+            ./gradlew assembleRelease --no-daemon
+            cp app/build/outputs/apk/release/app-release.apk ../DOMI-android.apk
+            rm -f "$DOMI_KEYSTORE_PATH"
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            echo "::error::Faltan los secretos ANDROID_KEYSTORE_BASE64 y ANDROID_KEYSTORE_PASSWORD. Agrégalos en Settings → Secrets and variables → Actions antes de publicar."
+            exit 1
+          else
+            # Compilación de prueba (sin llave privada): solo verifica que todo compile
+            ./gradlew assembleDebug --no-daemon
+            cp app/build/outputs/apk/debug/app-debug.apk ../DOMI-android.apk
+          fi
       - name: Confirmar instalador
-        run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk DOMI-android.apk
-          ls -lh DOMI-android.apk
+        run: ls -lh DOMI-android.apk
       - name: Adjuntar al Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2

@@ -43,6 +43,9 @@ Las apps no están firmadas con certificados de Apple ni de Microsoft (requieren
 - **Windows**: «Windows protegió tu PC» → Más información → Ejecutar de todas formas.
 - **Android**: permitir instalar apps desde el navegador.
 
+## Firma de Android
+El APK se firma con una llave privada que vive solo en los secretos del repositorio (`ANDROID_KEYSTORE_BASE64` y `ANDROID_KEYSTORE_PASSWORD`, en Settings → Secrets and variables → Actions). Sin ellos, publicar un Release falla a propósito. Guarda una copia de la llave fuera de GitHub: si se pierde, no se pueden publicar actualizaciones de Android.
+
 Para quitar estos avisos: Apple Developer Program (99 USD/año) y un certificado de firma de código para Windows.
 
 ## Marca

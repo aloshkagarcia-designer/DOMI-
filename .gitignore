@@ -1,3 +1,8 @@
 node_modules/
 dist/
 .DS_Store
+
+# Llaves de firma: nunca en el repositorio
+*.keystore
+*.jks
+*.p12

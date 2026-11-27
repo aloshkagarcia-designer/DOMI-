@@ -17,22 +17,28 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    // Firma fija: así cada nueva versión se instala encima de la anterior sin perder datos
+    // Firma privada de DOMI. La llave NO vive en el repositorio: GitHub Actions la
+    // decodifica desde los secretos ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD.
+    // Misma llave en cada versión = las actualizaciones se instalan encima sin perder datos.
+    def keystorePath = System.getenv("DOMI_KEYSTORE_PATH")
     signingConfigs {
-        domi {
-            storeFile file('domi-debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
+        if (keystorePath) {
+            domi {
+                storeFile file(keystorePath)
+                storeType "pkcs12"
+                storePassword System.getenv("DOMI_KEYSTORE_PASSWORD")
+                keyAlias "domi"
+                keyPassword System.getenv("DOMI_KEYSTORE_PASSWORD")
+            }
         }
     }
     buildTypes {
-        debug {
-            signingConfig signingConfigs.domi
-        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (keystorePath) {
+                signingConfig signingConfigs.domi
+            }
         }
     }
 }
