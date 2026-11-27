@@ -72,6 +72,11 @@
     dots: 'M5 12h.01M12 12h.01M19 12h.01',
     code: 'M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14',
     trend: 'M3 17l6-6 4 4 8-8M15 7h6v6',
+    // Patrimonio
+    vault: 'M3 10h18M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18M12 3l9 5H3z',
+    layers: 'M12 3 2 8l10 5 10-5zM2 13l10 5 10-5M2 18l10 5 10-5',
+    shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+    refresh: 'M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6',
     gift: 'M3 8h18v4H3zM5 12v9h14v-9M12 8v13M12 8C10 4 6.5 4 6.5 6.2S12 8 12 8zm0 0c2-4 5.5-4 5.5-1.8S12 8 12 8z',
     coin: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM15 9.5c-.5-1-1.6-1.5-3-1.5-1.8 0-3 .9-3 2.1 0 2.9 6 1.4 6 4.3 0 1.2-1.3 2.1-3 2.1-1.5 0-2.6-.6-3.1-1.6M12 6.5v11'
   };
@@ -123,14 +128,29 @@
   const cat = id => ALL_CATS.find(c => c.id === id) || CATS.expense.at(-1);
   // Subcategoría (p. ej. Servicios → Luz). Devuelve null si la categoría no tiene o no se eligió.
   const subOf = t => { const c = cat(t.cat); return (c.subs && t.sub && c.subs.find(s => s.id === t.sub)) || null; };
-  const txLabel = t => { const s = subOf(t); return s ? `${s.name} · ${cat(t.cat).name}` : cat(t.cat).name; };
+  const txLabel = t => {
+    if (t.type === 'invest') { const i = (state.investments || []).find(x => x.id === t.invId); return `${t.dir === 'out' ? 'Retiro' : 'Aportación'} · Patrimonio · ${i ? i.name : t.note || ''}`; }
+    const s = subOf(t); return s ? `${s.name} · ${cat(t.cat).name}` : cat(t.cat).name;
+  };
   const ACCOUNTS = ['Débito', 'Crédito', 'Efectivo', 'Transferencia'];
   const CURRENCIES = { MXN: 'es-MX', USD: 'en-US', EUR: 'es-ES', COP: 'es-CO', ARS: 'es-AR', CLP: 'es-CL', PEN: 'es-PE' };
 
   // ---------- Estado ----------
   const STORE = 'domi.v1';
   const LEGACY_STORE = 'fosforo.v1';
-  const blank = () => ({ tx: [], budgets: {}, goals: [], settings: { currency: 'MXN', theme: 'dark', name: '' } });
+  const blank = () => ({ tx: [], budgets: {}, goals: [], investments: [], settings: { currency: 'MXN', theme: 'dark', name: '' } });
+
+  // Tipos de inversión (paleta restringida de la marca)
+  const INV_TYPES = [
+    { id: 'cetes', name: 'CETES', icon: 'vault', color: '#3bff8a' },
+    { id: 'fondos', name: 'Fondos', icon: 'layers', color: '#3d6bff' },
+    { id: 'acciones', name: 'Acciones / ETF', icon: 'trend', color: 'var(--cat-ink)' },
+    { id: 'afore', name: 'AFORE / Retiro', icon: 'shield', color: '#8aa5ff' },
+    { id: 'cripto', name: 'Cripto', icon: 'coin', color: '#5b5b60' },
+    { id: 'inmuebles', name: 'Bienes raíces', icon: 'house', color: '#a6ffcb' },
+    { id: 'otra-inv', name: 'Otra', icon: 'dots', color: '#3a3a3e' }
+  ];
+  const invType = id => INV_TYPES.find(t => t.id === id) || INV_TYPES.at(-1);
   const load = () => {
     try {
       const s = JSON.parse(localStorage.getItem(STORE) || localStorage.getItem(LEGACY_STORE));
@@ -144,7 +164,7 @@
     catch (e) { toast('No hay espacio suficiente. Elimina algunos recibos o exporta un respaldo.'); return false; }
   };
 
-  const ui = { view: 'inicio', month: ym(new Date()), q: '', type: 'all', cat: 'all', draft: null };
+  const ui = { view: 'inicio', month: ym(new Date()), q: '', type: 'all', cat: 'all', draft: null, pat: 'metas' };
 
   // ---------- Formato ----------
   const money = (n, opts = {}) => {
@@ -168,14 +188,33 @@
     return new Date(Y, M - 1, D).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' });
   };
   const pctFmt = n => `${Math.round(n)}%`;
+  // Fecha relativa breve: hoy, ayer, hace N días, o «20 nov»
+  const ago = d => {
+    const [Y, M, D] = d.split('-').map(Number), then = new Date(Y, M - 1, D), now = new Date(); now.setHours(0, 0, 0, 0);
+    const n = Math.round((now - then) / 86400000);
+    if (n <= 0) return 'hoy'; if (n === 1) return 'ayer'; if (n < 30) return `hace ${n} días`;
+    return then.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }).replace('.', '');
+  };
 
   // ---------- Selectores de datos ----------
   const inMonth = (m = ui.month) => state.tx.filter(t => t.date.startsWith(m));
+  // Signo de cada movimiento sobre tu dinero disponible.
+  // Aportar a una inversión resta del balance, pero NO es gasto; retirar lo regresa.
+  const signed = t => t.type === 'income' ? t.amount : t.type === 'invest' ? (t.dir === 'out' ? t.amount : -t.amount) : -t.amount;
   const totals = list => {
     const inc = sum(list.filter(t => t.type === 'income'), t => t.amount);
     const exp = sum(list.filter(t => t.type === 'expense'), t => t.amount);
-    return { inc, exp, bal: inc - exp };
+    const inv = sum(list.filter(t => t.type === 'invest'), t => t.dir === 'out' ? -t.amount : t.amount);
+    return { inc, exp, inv, bal: inc - exp - inv };
   };
+  // Patrimonio
+  const invStats = () => {
+    const list = state.investments || [];
+    const value = sum(list, i => i.value), contributed = sum(list, i => i.contributed);
+    const gain = value - contributed;
+    return { list, value, contributed, gain, pct: contributed ? (gain / contributed) * 100 : 0 };
+  };
+  const goalsSaved = () => sum(state.goals, g => g.saved);
   const byCat = list => {
     const map = {};
     list.filter(t => t.type === 'expense').forEach(t => { map[t.cat] = (map[t.cat] || 0) + t.amount; });
@@ -188,7 +227,7 @@
     { id: 'inicio', label: 'Inicio', icon: 'home' },
     { id: 'movimientos', label: 'Movimientos', icon: 'list' },
     { id: 'presupuestos', label: 'Presupuestos', icon: 'pie' },
-    { id: 'metas', label: 'Metas', icon: 'target' },
+    { id: 'patrimonio', label: 'Patrimonio', icon: 'vault' },
     { id: 'ajustes', label: 'Ajustes', icon: 'gear' }
   ];
 
@@ -198,7 +237,7 @@
     const tab = n => `<a class="tab" href="#${n.id}" ${ui.view === n.id ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${n.label === 'Movimientos' ? 'Historial' : n.label === 'Presupuestos' ? 'Límites' : n.label}</span></a>`;
     $('#tabbar').innerHTML = tab(NAV[0]) + tab(NAV[1]) + `<button class="fab" data-action="add" aria-label="Nuevo movimiento">${icon('plus', 2.4)}</button>` + tab(NAV[2]) + tab(NAV[3]);
     $('#monthLabel').textContent = monthName(ui.month);
-    $('#monthSwitch').style.visibility = ['metas', 'ajustes'].includes(ui.view) ? 'hidden' : 'visible';
+    $('#monthSwitch').style.visibility = ['patrimonio', 'ajustes'].includes(ui.view) ? 'hidden' : 'visible';
     const gear = $('#topGear');
     if (gear) { if (ui.view === 'ajustes') gear.setAttribute('aria-current', 'page'); else gear.removeAttribute('aria-current'); }
   };
@@ -226,7 +265,7 @@
     return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gasto por día">${bars}${avg ? `<line x1="0" x2="${W}" y1="${ay}" y2="${ay}" stroke="var(--text)" stroke-opacity=".35" stroke-dasharray="3 4"/>` : ''}${labels}</svg>`;
   };
 
-  const donut = (data, size = 140) => {
+  const donut = (data, size = 140, label = "GASTO TOTAL") => {
     const total = sum(data, d => d.value);
     const r = 52, c = 2 * Math.PI * r, sw = 16;
     let off = 0;
@@ -237,8 +276,8 @@
       off += len;
       return s;
     }).join('');
-    return `<svg width="${size}" height="${size}" viewBox="0 0 140 140" role="img" aria-label="Gastos por categoría"><circle r="${r}" cx="70" cy="70" fill="none" stroke="var(--surface-3)" stroke-width="${sw}"/>${segs}
-      <text x="70" y="66" text-anchor="middle" style="font-family:var(--font-mono);font-size:8.5px;letter-spacing:.08em;fill:var(--muted)">GASTO TOTAL</text>
+    return `<svg width="${size}" height="${size}" viewBox="0 0 140 140" role="img" aria-label="${label === "GASTO TOTAL" ? "Gastos por categoría" : "Distribución de inversiones"}"><circle r="${r}" cx="70" cy="70" fill="none" stroke="var(--surface-3)" stroke-width="${sw}"/>${segs}
+      <text x="70" y="66" text-anchor="middle" style="font-family:var(--font-mono);font-size:8.5px;letter-spacing:.08em;fill:var(--muted)">${label}</text>
       <text x="70" y="84" text-anchor="middle" class="donut-center" style="font-size:17px;font-weight:700;letter-spacing:-.04em;fill:var(--text)">${esc(money(total, { compact: true }))}</text></svg>`;
   };
 
@@ -266,6 +305,15 @@
 
   // ---------- Componentes ----------
   const txRow = t => {
+    if (t.type === 'invest') {
+      const inv = state.investments.find(x => x.id === t.invId);
+      const name = inv ? inv.name : (t.note || 'Inversión');
+      return `<li class="tx" data-edit="${t.id}" tabindex="0" role="button" aria-label="${esc(name)}">
+        <div class="tx-ico invest">${icon(inv ? invType(inv.type).icon : 'trend')}</div>
+        <div class="tx-main"><div class="tx-title">${esc(name)}</div><div class="tx-meta"><span>${t.dir === 'out' ? 'Retiro' : 'Aportación'} · Patrimonio · ${esc(t.account)}</span></div></div>
+        <div class="tx-amt num invest">${t.dir === 'out' ? '+' : '→ '}${money(t.amount)}</div>
+      </li>`;
+    }
     const c = cat(t.cat), s = subOf(t);
     const title = t.note || (s ? s.name : c.name);
     const flags = (t.receipt ? icon('receipt') : '');
@@ -334,13 +382,13 @@
 
   const viewInicio = () => {
     const list = inMonth();
-    const { inc, exp, bal } = totals(list);
+    const { inc, exp, inv, bal } = totals(list);
     if (!state.tx.length) {
       return `<div class="page-head"><div><div class="eyebrow">${greeting()}</div><h1 class="h1">Tu dinero.<br><span>Bajo tu dominio.</span></h1></div></div>
       ${installBanner()}${emptyState('Empieza con tu primer movimiento', 'Registra un gasto o ingreso y DOMI construye tus gráficas, presupuestos e insights en automático.', '<button class="btn" data-action="demo">Ver con datos de ejemplo</button>')}`;
     }
     const prev = totals(inMonth(shiftYM(ui.month, -1)));
-    const savingRate = inc ? (bal / inc) * 100 : 0;
+    const savingRate = inc ? ((inc - exp) / inc) * 100 : 0;  // invertir también es ahorrar
     const cats = byCat(list);
     const top = cats[0];
     const isCur = ui.month === ym(new Date());
@@ -359,7 +407,7 @@
       <section class="hero" aria-label="Balance del mes">
         <div class="eyebrow">Balance · ${esc(monthName(ui.month))}</div>
         <div class="hero-amount num"><span class="sign">${bal < 0 ? '−' : ''}</span>${esc(int)}<span class="cents">${esc(cents)}</span></div>
-        <div class="hero-sub">${inc ? `Ahorras <b class="pos">${pctFmt(Math.max(savingRate, 0))}</b> de lo que ganas este mes.` : 'Registra tus ingresos para medir tu tasa de ahorro.'}</div>
+        <div class="hero-sub">${inc ? `Ahorras <b class="pos">${pctFmt(Math.max(savingRate, 0))}</b> de lo que ganas este mes${inv > 0 ? ` · <b>${money(inv, { compact: true })}</b> invertidos` : ''}.` : 'Registra tus ingresos para medir tu tasa de ahorro.'}</div>
         <div class="hero-stats">
           <div class="hero-stat"><div class="eyebrow"><i class="dot g"></i>Ingresos</div><strong class="num">${money(inc, { compact: true })}</strong></div>
           <div class="hero-stat"><div class="eyebrow"><i class="dot b"></i>Gastos</div><strong class="num">${money(exp, { compact: true })}</strong></div>
@@ -423,7 +471,7 @@
       <div class="card"><div class="eyebrow">Neto</div><strong class="num">${money(bal, { compact: true })}</strong></div>
     </div>
     ${list.length ? `<div class="card">${Object.entries(groups).map(([d, items]) => {
-      const net = sum(items, t => t.type === 'income' ? t.amount : -t.amount);
+      const net = sum(items, signed);
       return `<div class="day-group"><div class="day-head"><span class="eyebrow">${esc(dayLabel(d))}</span><span class="num">${net >= 0 ? '+' : '−'}${money(Math.abs(net))}</span></div><ul class="tx-list">${items.map(txRow).join('')}</ul></div>`;
     }).join('')}</div>`
     : state.tx.length ? `<div class="card empty"><div class="glyph">${icon('search')}</div><h3>Sin resultados</h3><p>Prueba con otro filtro o cambia de mes.</p></div>`
@@ -466,24 +514,106 @@
     : `<div class="card empty"><div class="glyph">${icon('pie')}</div><h3>Sin límites definidos</h3><p>Ponle tope a tus categorías más caras y mantén el control sin pensar.</p><div class="actions"><button class="btn green" data-action="budget">${icon('plus', 2.2)}Crear primer límite</button></div></div>`}`;
   };
 
-  const viewMetas = () => {
+  // ---------- Patrimonio (Metas + Inversiones) ----------
+  const monthsUntil = date => {
+    const d = new Date(date + 'T12:00'), n = new Date();
+    return Math.max(1, (d.getFullYear() - n.getFullYear()) * 12 + (d.getMonth() - n.getMonth()));
+  };
+  const pctSigned = n => `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(1)}%`;
+
+  const goalsBlock = () => {
     const g = state.goals;
-    const total = sum(g, x => x.saved), target = sum(g, x => x.target);
-    return `<div class="page-head"><div><div class="eyebrow">Ahorro</div><h1 class="h1">Metas<span>.</span></h1><p class="lede">${g.length ? `${money(total, { compact: true })} ahorrados de ${money(target, { compact: true })}.` : 'Ponle nombre a lo que quieres lograr.'}</p></div>
-      <button class="btn green sm" data-action="goal">${icon('plus', 2.2)}Nueva meta</button></div>
-    ${g.length ? `<div class="goals">${g.map(x => {
+    if (!g.length) return `<div class="card empty"><div class="glyph">${icon('target')}</div><h3>Tu primera meta</h3><p>Un viaje, un fondo de emergencia, una laptop. Define el monto y abona a tu ritmo.</p><div class="actions"><button class="btn green" data-action="goal">${icon('plus', 2.2)}Crear meta</button></div></div>`;
+    return `<div class="goals">${g.map(x => {
       const p = x.target ? (x.saved / x.target) * 100 : 0;
       const done = p >= 100;
+      const left = x.target - x.saved;
+      const pace = !done && x.deadline ? `≈ ${money(left / monthsUntil(x.deadline), { compact: true })} al mes` : '';
       return `<article class="card goal ${done ? 'done' : ''}">
         <div class="goal-top"><div><div class="eyebrow">${done ? 'Meta cumplida' : x.deadline ? 'Para ' + new Date(x.deadline + 'T12:00').toLocaleDateString('es-MX', { month: 'short', year: 'numeric' }) : 'Sin fecha'}</div><div class="goal-name">${esc(x.name)}</div></div>
           <button class="icon-btn" data-goal-del="${x.id}" aria-label="Eliminar meta">${icon('trash')}</button></div>
         <div class="goal-amt num">${money(x.saved, { compact: true })} <span>/ ${money(x.target, { compact: true })}</span></div>
         <div class="bar"><i style="width:${Math.min(p, 100)}%"></i></div>
-        <div class="budget-foot"><span>${pctFmt(p)} completado</span><span>${done ? '' : 'Faltan ' + money(x.target - x.saved, { compact: true })}</span></div>
+        <div class="budget-foot"><span>${done ? '100% completado' : 'Faltan ' + money(left, { compact: true })}</span><span>${pace || pctFmt(p)}</span></div>
         <div class="goal-actions"><button class="btn sm ${done ? '' : 'primary'}" data-goal-add="${x.id}">${icon('plus', 2.2)}Abonar</button><button class="btn sm ghost" data-goal-edit="${x.id}">Editar</button></div>
       </article>`;
-    }).join('')}</div>`
-    : `<div class="card empty"><div class="glyph">${icon('target')}</div><h3>Tu primera meta</h3><p>Un viaje, un fondo de emergencia, una laptop. Define el monto y abona a tu ritmo.</p><div class="actions"><button class="btn green" data-action="goal">${icon('plus', 2.2)}Crear meta</button></div></div>`}`;
+    }).join('')}</div>`;
+  };
+
+  // Valor total de las inversiones al cierre de cada mes, a partir del historial de valores
+  const invSeries = (n = 6) => {
+    const months = Array.from({ length: n }, (_, i) => shiftYM(ym(new Date()), i - n + 1));
+    return months.map(m => {
+      const end = `${m}-31`;
+      return { m, v: sum(state.investments, inv => { const h = (inv.history || []).filter(x => x.date <= end); return h.length ? h.at(-1).value : 0; }) };
+    });
+  };
+  const invChart = () => {
+    const s = invSeries();
+    if (s.filter(x => x.v > 0).length < 2) return '';
+    const W = 300, H = 120, top = 10, base = H - 22, max = Math.max(...s.map(x => x.v)), min = Math.min(...s.filter(x => x.v > 0).map(x => x.v)) * 0.9;
+    const X = i => 12 + i * ((W - 24) / (s.length - 1));
+    const Y = v => v ? base - ((v - min) / Math.max(max - min, 1)) * (base - top) : base;
+    const pts = s.map((x, i) => `${X(i)},${Y(x.v)}`);
+    return `<section class="card inv-evo"><div class="card-head"><h2 class="h2">Evolución</h2><span class="eyebrow">6 meses</span></div>
+      <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Valor de tus inversiones en los últimos 6 meses">
+        <defs><linearGradient id="evoFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--green)" stop-opacity=".28"/><stop offset="1" stop-color="var(--green)" stop-opacity="0"/></linearGradient></defs>
+        <path d="M${pts.join('L')}L${X(s.length - 1)},${base}L${X(0)},${base}Z" fill="url(#evoFill)"/>
+        <path d="M${pts.join('L')}" fill="none" stroke="var(--green)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+        ${s.map((x, i) => `<circle cx="${X(i)}" cy="${Y(x.v)}" r="${i === s.length - 1 ? 4 : 2.5}" fill="${i === s.length - 1 ? 'var(--green)' : 'var(--surface)'}" stroke="var(--green)" stroke-width="1.5"><title>${monthName(x.m)}: ${money(x.v)}</title></circle>`).join('')}
+        ${s.map((x, i) => `<text x="${X(i)}" y="${H - 4}" text-anchor="middle" style="${i === s.length - 1 ? 'fill:var(--text);font-weight:600' : ''}">${monthShort(x.m).toUpperCase()}</text>`).join('')}
+      </svg></section>`;
+  };
+
+  const investBlock = () => {
+    const { list, value } = invStats();
+    if (!list.length) return `<div class="card empty"><div class="glyph">${icon('trend')}</div><h3>Registra tu primera inversión</h3><p>CETES, fondos, acciones, AFORE o cripto. Anota cuánto pusiste y actualiza su valor cuando quieras.</p><div class="actions"><button class="btn green" data-action="inv-new">${icon('plus', 2.2)}Agregar inversión</button></div></div>`;
+    const byType = {};
+    list.forEach(i => { byType[i.type] = (byType[i.type] || 0) + i.value; });
+    const dist = Object.entries(byType).map(([id, v]) => ({ ...invType(id), value: v })).sort((a, b) => b.value - a.value);
+    const rows = [...list].sort((a, b) => b.value - a.value).map(i => {
+      const t = invType(i.type), g = i.value - i.contributed, p = i.contributed ? (g / i.contributed) * 100 : 0;
+      const upd = i.history && i.history.length ? i.history.at(-1).date : null;  // fecha del último valor registrado
+      return `<li class="tx" data-inv="${i.id}" tabindex="0" role="button" aria-label="${esc(i.name)}">
+        <div class="tx-ico">${icon(t.icon)}</div>
+        <div class="tx-main"><div class="tx-title">${esc(i.name)}</div><div class="tx-meta"><span>${esc(t.name)}${upd ? ' · ' + esc(ago(upd)) : ''}</span></div></div>
+        <div class="inv-val"><div class="tx-amt num">${money(i.value, { compact: true })}</div><div class="num inv-pct ${g < 0 ? 'neg' : ''}">${pctSigned(p)}</div></div>
+      </li>`;
+    }).join('');
+    return `<div class="grid inv-grid">
+      <section class="card"><div class="card-head"><h2 class="h2">Distribución</h2><span class="eyebrow">${list.length} ${list.length === 1 ? 'posición' : 'posiciones'}</span></div>
+        <div class="donut-wrap inv-donut">${donut(dist, 120, 'INVERTIDO')}<ul class="legend">${dist.map(d => `<li><i class="sw" style="background:${d.color}"></i><span>${esc(d.name)}</span><span class="pct">${pctFmt((d.value / value) * 100)}</span><span class="amt num">${money(d.value, { compact: true })}</span></li>`).join('')}</ul></div></section>
+      ${invChart()}
+      <section class="card span-2"><div class="card-head"><h2 class="h2">Posiciones</h2><button class="link" data-action="inv-new">${icon('plus', 2.2)}Agregar</button></div>
+        <ul class="tx-list">${rows}</ul>
+        <p class="inv-note">Toca una posición para aportar, retirar o actualizar su valor.</p></section>
+    </div>`;
+  };
+
+  const viewPatrimonio = () => {
+    const st = invStats(), saved = goalsSaved(), total = saved + st.value;
+    const { int, cents } = moneySplit(total);
+    const tab = ui.pat === 'inversiones' ? 'inversiones' : 'metas';
+    const empty = !state.goals.length && !st.list.length;
+    return `<div class="page-head"><div><div class="eyebrow">Ahorro e inversión</div><h1 class="h1">Patrimonio<span>.</span></h1></div>
+      <button class="btn green sm" data-action="${tab === 'metas' ? 'goal' : 'inv-new'}">${icon('plus', 2.2)}${tab === 'metas' ? 'Nueva meta' : 'Nueva inversión'}</button></div>
+    <div class="grid pat-top">
+      <section class="hero" aria-label="Patrimonio total">
+        <div class="eyebrow">Patrimonio total</div>
+        <div class="hero-amount num">${esc(int)}<span class="cents">${esc(cents)}</span></div>
+        <div class="hero-sub">${empty ? 'Suma lo que tienes en metas e inversiones.' : st.list.length ? `Tus inversiones ${st.gain >= 0 ? 'han generado' : 'van'} <b class="${st.gain >= 0 ? 'pos' : ''}">${st.gain >= 0 ? '+' : '−'}${money(Math.abs(st.gain), { compact: true })}</b> · <b class="${st.gain >= 0 ? 'pos' : ''}">${pctSigned(st.pct)}</b>` : `Ahorrado en ${state.goals.length} ${state.goals.length === 1 ? 'meta' : 'metas'}.`}</div>
+        <div class="hero-stats">
+          <div class="hero-stat"><div class="eyebrow"><i class="dot w"></i>Metas</div><strong class="num">${money(saved, { compact: true })}</strong></div>
+          <div class="hero-stat"><div class="eyebrow"><i class="dot b"></i>Invertido</div><strong class="num">${money(st.value, { compact: true })}</strong></div>
+          <div class="hero-stat"><div class="eyebrow"><i class="dot g"></i>Rendim.</div><strong class="num ${st.gain >= 0 ? 'pos' : ''}">${st.list.length ? pctSigned(st.pct) : '—'}</strong></div>
+        </div>
+      </section>
+    </div>
+    <div class="seg pat-seg" role="tablist" aria-label="Sección">
+      <button type="button" role="tab" data-pat="metas" aria-pressed="${tab === 'metas'}" aria-selected="${tab === 'metas'}">Metas</button>
+      <button type="button" role="tab" data-pat="inversiones" aria-pressed="${tab === 'inversiones'}" aria-selected="${tab === 'inversiones'}">Inversiones</button>
+    </div>
+    ${tab === 'metas' ? goalsBlock() : investBlock()}`;
   };
 
   const viewAjustes = () => {
@@ -508,7 +638,7 @@
     <p class="lede" style="text-align:center;margin-top:28px;font-size:12px">DOMI · local-first · tus datos no salen de este dispositivo</p>`;
   };
 
-  const VIEWS = { inicio: viewInicio, movimientos: viewMovimientos, presupuestos: viewPresupuestos, metas: viewMetas, ajustes: viewAjustes };
+  const VIEWS = { inicio: viewInicio, movimientos: viewMovimientos, presupuestos: viewPresupuestos, patrimonio: viewPatrimonio, ajustes: viewAjustes };
 
   const render = () => {
     renderNav();
@@ -580,6 +710,7 @@
 
   const openTx = id => {
     const t = id && state.tx.find(x => x.id === id);
+    if (t && t.type === 'invest') return openSheet(invTxSheet(t));
     const defDate = ui.month === ym(new Date()) ? today() : `${ui.month}-01`;
     ui.draft = t ? { ...t } : { type: 'expense', amount: '', cat: 'comida', date: defDate, account: 'Débito', note: '', receipt: null, reimb: null };
     openSheet(txForm());
@@ -620,6 +751,77 @@
       <p class="lede" style="text-align:center;margin-top:-8px">Llevas ${money(g.saved)} de ${money(g.target)}</p>
       <div class="sheet-actions"><button class="btn green">Confirmar</button></div>
     </form>`;
+  };
+
+  // ---------- Inversiones: formularios ----------
+  const invForm = id => {
+    const i = id ? state.investments.find(x => x.id === id) : { name: '', type: ui.invType || 'cetes', contributed: '', value: '' };
+    const type = ui.invType || i.type;
+    return `${sheetHead(id ? 'Editar inversión' : 'Nueva inversión')}
+    <form id="invForm" data-id="${id || ''}" autocomplete="off">
+      <label><span class="field-label">Nombre</span><input class="input" name="name" required maxlength="40" placeholder="Ej. CETES 28 días, Fondo GBM+, VOO" value="${esc(i.name)}"></label>
+      <span class="field-label">Tipo</span>
+      <div class="sub-chips">${INV_TYPES.map(t => `<button type="button" class="sub-chip" data-invtype="${t.id}" aria-pressed="${type === t.id}">${icon(t.icon)}${t.name}</button>`).join('')}</div>
+      ${id ? '' : `<div class="row2" style="margin-top:6px">
+        <label><span class="field-label">Lo que has puesto</span><input class="input" name="contributed" inputmode="decimal" required placeholder="0"></label>
+        <label><span class="field-label">Vale hoy</span><input class="input" name="value" inputmode="decimal" placeholder="Igual"></label>
+      </div>
+      <button type="button" class="toggle-row" role="switch" aria-checked="${!!ui.invDeduct}" data-action="inv-deduct"><span><b>Sale de mi balance de este mes</b><small>Actívalo si acabas de invertir este dinero. Déjalo apagado si ya lo tenías invertido.</small></span>
+        <span class="switch" aria-hidden="true" aria-checked="${!!ui.invDeduct}"></span></button>`}
+      <div class="sheet-actions">
+        ${id ? `<button type="button" class="btn danger" data-action="inv-del" data-id="${id}" style="flex:0 0 auto;width:52px;padding:0" aria-label="Eliminar inversión">${icon('trash')}</button>` : ''}
+        <button class="btn primary">${id ? 'Guardar cambios' : 'Agregar inversión'}</button>
+      </div>
+    </form>`;
+  };
+
+  const invSheet = id => {
+    const i = state.investments.find(x => x.id === id);
+    const op = ui.invOp || 'add';
+    const t = invType(i.type), g = i.value - i.contributed, p = i.contributed ? (g / i.contributed) * 100 : 0;
+    const notes = {
+      add: ['No cuenta como gasto', 'El dinero sale de tu balance y entra a tu patrimonio. Tu tasa de ahorro sube.'],
+      sub: ['Regresa a tu balance', 'El dinero vuelve a estar disponible para gastar este mes.'],
+      set: ['Solo actualiza el valor', 'No mueve dinero; registra cuánto vale hoy para medir el rendimiento.']
+    };
+    return `<div class="sheet-head"><div><h2 class="h2" id="sheetTitle" style="font-size:20px">${esc(i.name)}</h2><div class="tx-meta" style="margin-top:2px">${esc(t.name)}</div></div><button type="button" class="icon-btn" data-action="close" aria-label="Cerrar">${icon('x')}</button></div>
+    <div class="inv-stats">
+      <div><span class="eyebrow">Aportado</span><b class="num">${money(i.contributed, { compact: true })}</b></div>
+      <div><span class="eyebrow">Vale hoy</span><b class="num">${money(i.value, { compact: true })}</b></div>
+      <div><span class="eyebrow">Rendimiento</span><b class="num inv-pct ${g < 0 ? 'neg' : ''}">${pctSigned(p)}</b></div>
+    </div>
+    <form id="invMoveForm" data-id="${id}" autocomplete="off">
+      <div class="seg seg3" role="group" aria-label="Operación">
+        <button type="button" data-invop="add" aria-pressed="${op === 'add'}">Aportar</button>
+        <button type="button" data-invop="sub" aria-pressed="${op === 'sub'}">Retirar</button>
+        <button type="button" data-invop="set" aria-pressed="${op === 'set'}">Actualizar valor</button>
+      </div>
+      <label class="amount-field"><span class="cur">${esc(curSymbol())}</span><span class="sr-only">Monto</span><input name="amount" inputmode="decimal" placeholder="${op === 'set' ? String(Math.round(i.value)) : '0'}" required></label>
+      <div class="row2">
+        ${op === 'set' ? '' : `<label><span class="field-label">${op === 'add' ? 'Desde' : 'Hacia'}</span><select class="input" name="account">${ACCOUNTS.map(a => `<option>${a}</option>`).join('')}</select></label>`}
+        <label ${op === 'set' ? 'style="grid-column:1/-1"' : ''}><span class="field-label">Fecha</span><input class="input" type="date" name="date" value="${today()}" required></label>
+      </div>
+      <div class="toggle-row note-row"><span><b>${notes[op][0]}</b><small>${notes[op][1]}</small></span></div>
+      <div class="sheet-actions">
+        <button type="button" class="btn ghost" data-action="inv-edit" data-id="${id}" style="flex:0 0 auto">Editar</button>
+        <button class="btn ${op === 'set' ? 'primary' : 'green'}">${op === 'add' ? 'Aportar' : op === 'sub' ? 'Retirar' : 'Guardar valor'}</button>
+      </div>
+    </form>`;
+  };
+
+  // Movimiento de inversión tocado desde el historial
+  const invTxSheet = t => {
+    const i = state.investments.find(x => x.id === t.invId);
+    return `${sheetHead(t.dir === 'out' ? 'Retiro de inversión' : 'Aportación a inversión')}
+    <div class="inv-stats" style="grid-template-columns:1fr 1fr">
+      <div><span class="eyebrow">Monto</span><b class="num">${money(t.amount)}</b></div>
+      <div><span class="eyebrow">Fecha</span><b>${esc(dayLabel(t.date))}</b></div>
+    </div>
+    <p class="lede" style="margin:14px 0 0">${esc(i ? i.name : t.note || 'Inversión eliminada')} · ${esc(t.account)}. ${t.dir === 'out' ? 'Regresó a tu balance.' : 'Salió de tu balance hacia tu patrimonio; no cuenta como gasto.'}</p>
+    <div class="sheet-actions">
+      <button type="button" class="btn danger" data-action="invtx-del" data-id="${t.id}">${icon('trash')}Eliminar movimiento</button>
+      ${i ? `<button type="button" class="btn primary" data-inv="${i.id}">Ver inversión</button>` : ''}
+    </div>`;
   };
 
   // Comprime la foto del recibo para que quepa en el almacenamiento local
@@ -669,7 +871,9 @@
     if (!list.length) return toast('No hay movimientos para exportar en este periodo.');
     const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [['Fecha', 'Tipo', 'Categoría', 'Subcategoría', 'Cuenta', 'Nota', 'Monto', 'Moneda', 'Reembolso', 'Recibo']]
-      .concat(sorted(list).map(t => [t.date, t.type === 'income' ? 'Ingreso' : 'Gasto', cat(t.cat).name, subOf(t)?.name || '', t.account, t.note, (t.type === 'income' ? 1 : -1) * t.amount, state.settings.currency, t.reimb === 'done' ? 'Reembolsado' : t.reimb ? 'Pendiente' : '', t.receipt ? 'Sí' : '']));
+      .concat(sorted(list).map(t => t.type === 'invest'
+        ? [t.date, t.dir === 'out' ? 'Retiro de inversión' : 'Aportación a inversión', 'Patrimonio', state.investments.find(x => x.id === t.invId)?.name || t.note || '', t.account, '', signed(t), state.settings.currency, '', '']
+        : [t.date, t.type === 'income' ? 'Ingreso' : 'Gasto', cat(t.cat).name, subOf(t)?.name || '', t.account, t.note, (t.type === 'income' ? 1 : -1) * t.amount, state.settings.currency, t.reimb === 'done' ? 'Reembolsado' : t.reimb ? 'Pendiente' : '', t.receipt ? 'Sí' : '']));
     download(`domi-${ui.type === 'reimb' ? 'reembolsos' : ui.month}.csv`, '﻿' + rows.map(r => r.map(q).join(',')).join('\n'), 'text/csv;charset=utf-8');
     toast('Reporte exportado');
   };
@@ -706,7 +910,27 @@
       if (last >= 12) add(D(12), 'expense', 'salud', rnd(400, 900), 'Consulta', 'Débito');
       if (last >= 18) add(D(18), 'expense', 'viajes', rnd(1200, 2600), 'Comida con cliente', 'Crédito', { reimb: m === 0 ? 'pending' : 'done' });
     }
-    state = { ...state, tx, budgets: { comida: 6000, servicios: 2200, transporte: 2500, compras: 2500, ocio: 1500, suscripciones: 1400 },
+    // Inversiones con historial mensual (crecimiento suave, cripto con baja)
+    const mk = (name, type, startContrib, monthly, growth) => {
+      const inv = { id: uid(), name, type, contributed: 0, value: 0, history: [], created: Date.now() };
+      for (let m = 5; m >= 0; m--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - m, m === 0 ? Math.min(now.getDate(), 20) : 25, 12);
+        const add = m === 5 ? startContrib : monthly;
+        inv.contributed += add; inv.value = Math.round((inv.value + add) * (1 + growth) * 100) / 100;
+        inv.history.push({ date: iso(d), value: inv.value });
+      }
+      return inv;
+    };
+    const investments = [
+      mk('CETES 28 días', 'cetes', 18000, 1000, 0.009),
+      mk('Fondo GBM+', 'fondos', 12000, 800, 0.016),
+      mk('VOO · S&P 500', 'acciones', 8000, 500, 0.022),
+      mk('AFORE', 'afore', 6200, 150, 0.008),
+      mk('Bitcoin', 'cripto', 5200, 0, -0.012)
+    ];
+    const cetes = investments[0];
+    tx.push({ id: uid(), type: 'invest', dir: 'in', invId: cetes.id, amount: 3000, account: 'Débito', date: iso(new Date(now.getFullYear(), now.getMonth(), Math.max(1, now.getDate() - 2), 12)), note: cetes.name, created: Date.now() });
+    state = { ...state, tx, investments, budgets: { comida: 6000, servicios: 2200, transporte: 2500, compras: 2500, ocio: 1500, suscripciones: 1400 },
       goals: [
         { id: uid(), name: 'Fondo de emergencia', target: 60000, saved: 38500, deadline: `${now.getFullYear() + 1}-03-01` },
         { id: uid(), name: 'Viaje a Japón', target: 45000, saved: 12800, deadline: `${now.getFullYear() + 1}-10-01` },
@@ -719,6 +943,7 @@
   const route = () => {
     const v = location.hash.slice(1);
     if (v === 'nuevo') { history.replaceState(null, '', '#inicio'); ui.view = 'inicio'; render(); return openTx(); }
+    if (v === 'metas' || v === 'inversiones') { ui.pat = v; history.replaceState(null, '', '#patrimonio'); ui.view = 'patrimonio'; render(); return window.scrollTo({ top: 0 }); }
     ui.view = VIEWS[v] ? v : 'inicio';
     render();
     window.scrollTo({ top: 0 });
@@ -727,7 +952,7 @@
   window.addEventListener('scroll', () => $('#topbar').classList.toggle('scrolled', scrollY > 4), { passive: true });
 
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-action],[data-edit],[data-type],[data-cat],[data-sub],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
+    const t = e.target.closest('[data-action],[data-edit],[data-type],[data-cat],[data-sub],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
     if (!t) return;
     const a = t.dataset.action;
 
@@ -752,6 +977,16 @@
     if (t.dataset.goalEdit) return openSheet(goalForm(t.dataset.goalEdit));
     if (t.dataset.goalDel) { const i = state.goals.findIndex(g => g.id === t.dataset.goalDel); const [g] = state.goals.splice(i, 1); save(); render(); return toast('Meta eliminada', () => { state.goals.splice(i, 0, g); }); }
     if (t.dataset.op) { $$('[data-op]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
+    // Patrimonio
+    if (t.dataset.pat) { ui.pat = t.dataset.pat; return render(); }
+    if (t.dataset.inv) { ui.invOp = 'add'; return openSheet(invSheet(t.dataset.inv)); }
+    if (t.dataset.invop) {
+      const f = $('#invMoveForm'); const amt = f ? f.amount.value : '';
+      ui.invOp = t.dataset.invop; openSheet(invSheet(f.dataset.id));
+      if (amt && ui.invOp !== 'set') $('#invMoveForm').amount.value = amt;
+      return;
+    }
+    if (t.dataset.invtype) { ui.invType = t.dataset.invtype; $$('[data-invtype]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
 
     switch (a) {
       case 'add': return openTx();
@@ -781,6 +1016,27 @@
         state = { ...blank(), settings: state.settings }; save(); render(); return toast('Datos borrados');
       case 'budget': return openSheet(budgetForm());
       case 'goal': return openSheet(goalForm());
+      case 'inv-new': ui.invType = null; ui.invDeduct = false; return openSheet(invForm());
+      case 'inv-edit': ui.invType = null; return openSheet(invForm(t.dataset.id));
+      case 'inv-deduct': ui.invDeduct = !ui.invDeduct; t.setAttribute('aria-checked', ui.invDeduct); t.querySelector('.switch').setAttribute('aria-checked', ui.invDeduct); return;
+      case 'inv-del': {
+        const i = state.investments.findIndex(x => x.id === t.dataset.id);
+        const [removed] = state.investments.splice(i, 1); save(); closeSheet(); render();
+        return toast('Inversión eliminada', () => { state.investments.splice(i, 0, removed); });
+      }
+      case 'invtx-del': {
+        // Revierte el efecto del movimiento sobre la inversión
+        const k = state.tx.findIndex(x => x.id === t.dataset.id); if (k < 0) return;
+        const mv = state.tx[k], inv = state.investments.find(x => x.id === mv.invId);
+        const snap = inv ? { contributed: inv.contributed, value: inv.value, history: [...(inv.history || [])] } : null;
+        if (inv) {
+          if (mv.dir === 'out') { inv.value += mv.amount; inv.contributed += mv.basis || mv.amount; }
+          else { inv.value = Math.max(0, inv.value - mv.amount); inv.contributed = Math.max(0, inv.contributed - mv.amount); }
+          inv.history = [...(inv.history || []), { date: today(), value: inv.value }];
+        }
+        state.tx.splice(k, 1); save(); closeSheet(); render();
+        return toast('Movimiento eliminado', () => { state.tx.splice(k, 0, mv); if (inv) Object.assign(inv, snap); });
+      }
       case 'receipt': syncDraft(); return $('#receiptInput').click();
       case 'receipt-del': ui.draft.receipt = null; return redrawTx();
       case 'reimb-toggle': ui.draft.reimb = ui.draft.reimb ? null : 'pending'; return redrawTx();
@@ -795,7 +1051,7 @@
   });
 
   document.addEventListener('keydown', e => {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-edit],[data-budget]')) { e.preventDefault(); e.target.click(); }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-edit],[data-budget],[data-inv]')) { e.preventDefault(); e.target.click(); }
     if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !sheet.open && !e.target.matches('input,textarea,select')) { e.preventDefault(); openTx(); }
   });
 
@@ -880,6 +1136,46 @@
       save(); closeSheet(); render();
       haptic(!wasDone && g.saved >= g.target ? [20, 60, 20] : 12);
       return toast(!wasDone && g.saved >= g.target ? `¡Meta cumplida: ${g.name}!` : sub ? 'Retiro registrado' : 'Abono registrado');
+    }
+    if (f.id === 'invForm') {
+      const id = f.dataset.id, name = f.name.value.trim();
+      if (!name) return toast('Ponle nombre a tu inversión');
+      if (id) {
+        const inv = state.investments.find(x => x.id === id);
+        Object.assign(inv, { name, type: ui.invType || inv.type });
+        save(); closeSheet(); render(); return toast('Inversión actualizada');
+      }
+      const contributed = parseAmount(f.contributed.value);
+      if (!contributed) { f.contributed.focus(); return toast('Escribe cuánto has puesto'); }
+      const value = parseAmount(f.value.value) || contributed;
+      const inv = { id: uid(), name, type: ui.invType || 'cetes', contributed, value, history: [{ date: today(), value }], created: Date.now() };
+      state.investments.push(inv);
+      if (ui.invDeduct) state.tx.push({ id: uid(), type: 'invest', dir: 'in', invId: inv.id, amount: contributed, account: 'Débito', date: today(), note: name, created: Date.now() });
+      ui.pat = 'inversiones';
+      if (!save()) { state.investments.pop(); return; }
+      haptic(); closeSheet(); if (location.hash !== '#patrimonio') location.hash = 'patrimonio'; else render();
+      return toast('Inversión agregada');
+    }
+    if (f.id === 'invMoveForm') {
+      const inv = state.investments.find(x => x.id === f.dataset.id);
+      const amount = parseAmount(f.amount.value), op = ui.invOp || 'add', date = f.date.value || today();
+      if (!amount && op !== 'set') { f.amount.focus(); return toast('Escribe un monto mayor a cero'); }
+      if (op === 'set') {
+        if (!f.amount.value.trim()) { f.amount.focus(); return toast('Escribe cuánto vale hoy'); }
+        inv.value = amount;
+      } else if (op === 'add') {
+        inv.contributed += amount; inv.value += amount;
+        state.tx.push({ id: uid(), type: 'invest', dir: 'in', invId: inv.id, amount, account: f.account.value, date, note: inv.name, created: Date.now() });
+      } else {
+        if (amount > inv.value + 0.001) return toast(`Solo puedes retirar hasta ${money(inv.value)}`);
+        // El costo base se reduce en proporción a lo retirado
+        const basis = inv.value ? Math.round(inv.contributed * (amount / inv.value) * 100) / 100 : amount;
+        inv.contributed = Math.max(0, inv.contributed - basis); inv.value = Math.max(0, inv.value - amount);
+        state.tx.push({ id: uid(), type: 'invest', dir: 'out', invId: inv.id, amount, basis, account: f.account.value, date, note: inv.name, created: Date.now() });
+      }
+      inv.history = [...(inv.history || []), { date, value: inv.value }].sort((a, b) => a.date.localeCompare(b.date));
+      save(); haptic(); closeSheet(); render();
+      return toast(op === 'set' ? 'Valor actualizado' : op === 'add' ? `Aportaste ${money(amount, { compact: true })} · no cuenta como gasto` : 'Retiro registrado');
     }
   });
 
