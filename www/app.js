@@ -161,6 +161,7 @@
     return blank();
   };
   let state = load();
+  if (!state.settings.since) state.settings.since = iso(new Date());   // fecha de inicio de uso (para el primer recordatorio)
   const save = () => {
     try { localStorage.setItem(STORE, JSON.stringify(state)); return true; }
     catch (e) { toast('No hay espacio suficiente. Elimina algunos recibos o exporta un respaldo.'); return false; }
@@ -381,6 +382,43 @@
       <div class="acts">${act}<button class="icon-btn" data-action="install-hide" aria-label="Ocultar aviso">${icon('x')}</button></div></div>`;
   };
 
+  // ---------- Respaldo: recordatorio mensual ----------
+  const daysSince = d => { if (!d) return Infinity; const [Y, M, D] = d.split('-').map(Number); const n = new Date(); n.setHours(0, 0, 0, 0); return Math.round((n - new Date(Y, M - 1, D)) / 86400000); };
+  const addDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return iso(d); };
+  const hasData = () => state.tx.length >= 5 || state.goals.length > 0 || (state.investments || []).length > 0;
+  const backupDue = () => {
+    const s = state.settings;
+    if (s.backupReminder === false || !hasData()) return false;
+    if (s.backupSnooze && today() < s.backupSnooze) return false;
+    // Nunca has respaldado: avisa al acumular datos o tras una semana de uso. Después, cada 30 días.
+    if (!s.lastBackup) return state.tx.length >= 15 || daysSince(s.since) >= 7;
+    return daysSince(s.lastBackup) >= 30;
+  };
+  const backupBanner = () => {
+    if (!backupDue()) return '';
+    const last = state.settings.lastBackup;
+    const when = last ? `Último respaldo: hace ${daysSince(last)} días.` : 'Aún no tienes un respaldo.';
+    const where = platform === 'ios' ? 'Guárdalo en iCloud Drive' : platform === 'android' ? 'Guárdalo en Google Drive' : 'Guárdalo en la nube';
+    return `<div class="install backup-note" role="note"><div class="ico ico-glyph">${icon('shield')}</div>
+      <div><b>Respalda tus datos</b><p>${when} ${where} por si cambias o pierdes el ${platform === 'desktop' ? 'equipo' : 'celular'}.</p></div>
+      <div class="acts"><button class="btn ghost sm" data-action="backup-later">Más tarde</button><button class="btn green sm" data-action="export-json">${icon('download')}Respaldar</button></div></div>`;
+  };
+  // Un solo aviso a la vez: instalar primero (protege los datos en iPhone), luego respaldo
+  const noticeBanner = () => installBanner() || backupBanner();
+
+  const doBackup = async () => {
+    const name = `domi-respaldo-${today()}.json`, json = JSON.stringify(state, null, 2);
+    const mark = () => { state.settings.lastBackup = today(); state.settings.backupSnooze = null; save(); render(); toast('Respaldo listo. Te recordaremos en un mes.'); };
+    // En el celular: menú de compartir para guardarlo directo en iCloud Drive, Google Drive, etc.
+    if (!isNative && platform !== 'desktop' && navigator.canShare) {
+      try {
+        const file = new File([json], name, { type: 'application/json' });
+        if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Respaldo de DOMI' }); return mark(); }
+      } catch (err) { if (err && err.name === 'AbortError') return; /* si falla, se descarga */ }
+    }
+    download(name, json, 'application/json'); mark();
+  };
+
   const haptic = (p = 12) => { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { /* iOS no soporta vibración web */ } };
 
   const viewInicio = () => {
@@ -388,7 +426,7 @@
     const { inc, exp, inv, bal } = totals(list);
     if (!state.tx.length) {
       return `<div class="page-head"><div><div class="eyebrow">${greeting()}</div><h1 class="h1">Tu dinero.<br><span>Bajo tu dominio.</span></h1></div></div>
-      ${installBanner()}${emptyState('Empieza con tu primer movimiento', 'Registra un gasto o ingreso y DOMI construye tus gráficas, presupuestos e insights en automático.', '<button class="btn" data-action="stmt">Importar estado de cuenta</button><button class="btn ghost" data-action="demo">Ver con datos de ejemplo</button>')}`;
+      ${noticeBanner()}${emptyState('Empieza con tu primer movimiento', 'Registra un gasto o ingreso y DOMI construye tus gráficas, presupuestos e insights en automático.', '<button class="btn" data-action="stmt">Importar estado de cuenta</button><button class="btn ghost" data-action="demo">Ver con datos de ejemplo</button>')}`;
     }
     const prev = totals(inMonth(shiftYM(ui.month, -1)));
     const savingRate = inc ? ((inc - exp) / inc) * 100 : 0;  // invertir también es ahorrar
@@ -405,7 +443,7 @@
     const legendData = cats.length > 5 ? [...cats.slice(0, 4), { name: 'Otras', color: '#3a3a3e', value: sum(cats.slice(4), c => c.value) }] : cats;
 
     return `<div class="page-head"><div><div class="eyebrow">${greeting()}</div><h1 class="h1">Resumen<span>.</span></h1></div></div>
-    ${installBanner()}
+    ${noticeBanner()}
     <div class="grid dash">
       <section class="hero" aria-label="Balance del mes">
         <div class="eyebrow">Balance · ${esc(monthName(ui.month))}</div>
@@ -694,7 +732,8 @@
       </div></section>
       <section class="card"><h2 class="h2" style="margin-bottom:6px">Datos</h2><div class="set-list">
         <div class="set-row"><div><div class="label">Reporte CSV</div><div class="hint">Abre en Excel o Google Sheets</div></div><button class="btn sm" data-action="export-csv">${icon('download')}CSV</button></div>
-        <div class="set-row"><div><div class="label">Respaldo completo</div><div class="hint">${state.tx.length} movimientos · ${kb} KB</div></div><button class="btn sm" data-action="export-json">${icon('download')}JSON</button></div>
+        <div class="set-row"><div><div class="label">Respaldo completo</div><div class="hint">${s.lastBackup ? `Último: ${daysSince(s.lastBackup) === 0 ? 'hoy' : daysSince(s.lastBackup) === 1 ? 'ayer' : `hace ${daysSince(s.lastBackup)} días`}` : 'Nunca has respaldado'} · ${state.tx.length} movimientos · ${kb} KB</div></div><button class="btn sm ${s.lastBackup && daysSince(s.lastBackup) < 30 ? '' : 'green'}" data-action="export-json">${icon('download')}Respaldar</button></div>
+        <div class="set-row"><div><div class="label">Recordatorio mensual</div><div class="hint">Te avisamos si pasan 30 días sin respaldo</div></div><button class="switch" role="switch" aria-checked="${s.backupReminder !== false}" data-action="backup-toggle" aria-label="Recordatorio mensual de respaldo"></button></div>
         <div class="set-row"><div><div class="label">Estado de cuenta</div><div class="hint">Importa el CSV de tu banco</div></div><button class="btn sm" data-action="stmt">${icon('upload')}Importar</button></div>
         <div class="set-row"><div><div class="label">Restaurar respaldo</div><div class="hint">Reemplaza los datos actuales</div></div><button class="btn sm" data-action="import">${icon('upload')}Importar</button></div>
         <div class="set-row"><div><div class="label">Datos de ejemplo</div><div class="hint">Explora la app con 6 meses ficticios</div></div><button class="btn sm" data-action="demo">Cargar</button></div>
@@ -1295,7 +1334,9 @@
         $('meta[name=theme-color]').content = state.settings.theme === 'dark' ? '#050505' : '#f6f6f3';
         save(); return render();
       case 'export-csv': return exportCSV();
-      case 'export-json': download(`domi-respaldo-${today()}.json`, JSON.stringify(state, null, 2), 'application/json'); return toast('Respaldo descargado');
+      case 'export-json': return doBackup();
+      case 'backup-later': state.settings.backupSnooze = addDays(7); save(); render(); return toast('Te lo recordamos en 7 días');
+      case 'backup-toggle': state.settings.backupReminder = state.settings.backupReminder === false; save(); return render();
       case 'import': return $('#importInput').click();
       case 'wipe':
         if (!confirm('¿Borrar todos tus movimientos, límites y metas? Esta acción no se puede deshacer.')) return;

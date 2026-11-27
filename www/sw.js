@@ -1,5 +1,5 @@
 // DOMI — service worker: funciona sin conexión
-const CACHE = 'domi-v8';
+const CACHE = 'domi-v9';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'icon.svg', 'manifest.webmanifest', 'fonts.css', 'fonts/inter-latin-400-normal.woff2', 'fonts/inter-latin-600-normal.woff2', 'fonts/inter-tight-latin-700-normal.woff2', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

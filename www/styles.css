@@ -758,3 +758,14 @@ input, select, textarea, .input, .search input { font-size: 16px; }
 .btn[disabled] { opacity: .4; pointer-events: none; }
 
 dialog.sheet:focus, dialog.sheet:focus-visible, .sheet-inner:focus { outline: none; }
+
+/* ---------- Recordatorio de respaldo ---------- */
+.install .ico-glyph { display: grid; place-items: center; background: var(--blue-soft); color: var(--blue-text); }
+.install .ico-glyph svg { width: 22px; height: 22px; }
+.backup-note { border-color: color-mix(in srgb, var(--blue) 40%, var(--line)); }
+.backup-note { grid-template-columns: 44px 1fr; }
+.backup-note .acts { grid-column: 1 / -1; justify-content: flex-end; }
+@media (min-width: 640px) {
+  .backup-note { grid-template-columns: 44px 1fr auto; }
+  .backup-note .acts { grid-column: auto; }
+}
