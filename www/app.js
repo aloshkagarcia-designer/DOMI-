@@ -159,6 +159,8 @@
   ];
 
   const renderNav = () => {
+    const side = $('#sideNav');
+    if (side) side.innerHTML = NAV.map(n => `<a class="side-link" href="#${n.id}" ${ui.view === n.id ? 'aria-current="page"' : ''}>${icon(n.icon)}${n.label}</a>`).join('');
     const tab = n => `<a class="tab" href="#${n.id}" ${ui.view === n.id ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${n.label === 'Movimientos' ? 'Historial' : n.label === 'Presupuestos' ? 'Límites' : n.label}</span></a>`;
     $('#tabbar').innerHTML = tab(NAV[0]) + tab(NAV[1]) + `<button class="fab" data-action="add" aria-label="Nuevo movimiento">${icon('plus', 2.4)}</button>` + tab(NAV[2]) + tab(NAV[3]);
     $('#monthLabel').textContent = monthName(ui.month);
@@ -259,7 +261,14 @@
     if (/Android/.test(ua)) return 'android';
     return 'desktop';
   })();
-  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  // App nativa: Electron (Mac / Windows) o Capacitor (Android)
+  const isElectron = /Electron/.test(navigator.userAgent);
+  const isCapacitor = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const isNative = isElectron || isCapacitor;
+  if (isNative) document.documentElement.classList.add('app-native');
+  if (isElectron && /Macintosh/.test(navigator.userAgent)) document.documentElement.classList.add('app-mac');
+  const DOWNLOAD_URL = 'https://aloshkagarcia-designer.github.io/DOMI-/';
+  const standalone = isNative || window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   let installPrompt = null;
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; if (ui.view === 'inicio') render(); });
   window.addEventListener('appinstalled', () => { installPrompt = null; state.settings.installHidden = true; save(); render(); toast('DOMI quedó instalada'); });
@@ -276,8 +285,9 @@
       if (installPrompt) { text = 'Pantalla completa, ícono propio y funciona sin conexión.'; act = '<button class="btn green sm" data-action="install">Instalar</button>'; }
       else text = 'En Chrome abre el menú ⋮ y toca «Instalar app».';
     } else {
-      title = 'DOMI vive en tu celular';
-      text = 'Abre este enlace en tu iPhone o Android para instalarla.';
+      title = 'Descarga DOMI';
+      text = 'App para Mac, Windows y Android, o instálala en tu iPhone.';
+      act = `<a class="btn green sm" href="${DOWNLOAD_URL}" target="_blank" rel="noopener">Descargar</a>`;
     }
     return `<div class="install" role="note"><div class="ico"><img src="icons/icon-192.png" alt=""></div><div><b>${title}</b><p>${text}</p></div>
       <div class="acts">${act}<button class="icon-btn" data-action="install-hide" aria-label="Ocultar aviso">${icon('x')}</button></div></div>`;
@@ -439,7 +449,7 @@
         <div class="set-row"><div><div class="label">Tu nombre</div><div class="hint">Para saludarte en el inicio</div></div><input id="setName" value="${esc(s.name)}" placeholder="Opcional" maxlength="24"></div>
         <div class="set-row"><div><div class="label">Moneda</div><div class="hint">Formato de todos los montos</div></div><select id="setCur">${Object.keys(CURRENCIES).map(c => `<option ${c === s.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
         <div class="set-row"><div><div class="label">Modo oscuro</div><div class="hint">Negro profundo o blanco editorial</div></div><button class="switch" role="switch" aria-checked="${s.theme === 'dark'}" data-action="theme" aria-label="Modo oscuro"></button></div>
-        <div class="set-row"><div><div class="label">App en tu celular</div><div class="hint">${standalone ? 'Instalada en esta pantalla de inicio' : platform === 'ios' ? 'iPhone · Safari → Compartir → Agregar a inicio' : 'Android · Chrome → Instalar app'}</div></div>${standalone ? '<span class="tag">INSTALADA</span>' : '<button class="btn sm" data-action="install-show">Cómo instalar</button>'}</div>
+        <div class="set-row"><div><div class="label">App DOMI</div><div class="hint">${standalone ? 'Instalada en este dispositivo' : platform === 'ios' ? 'iPhone · Safari → Compartir → Agregar a inicio' : platform === 'android' ? 'Android · descarga la app o instálala desde Chrome' : 'Disponible para Mac, Windows, Android e iPhone'}</div></div>${standalone ? '<span class="tag">INSTALADA</span>' : '<button class="btn sm" data-action="install-show">Cómo instalar</button>'}</div>
       </div></section>
       <section class="card"><h2 class="h2" style="margin-bottom:6px">Datos</h2><div class="set-list">
         <div class="set-row"><div><div class="label">Reporte CSV</div><div class="hint">Abre en Excel o Google Sheets</div></div><button class="btn sm" data-action="export-csv">${icon('download')}CSV</button></div>
@@ -591,6 +601,14 @@
 
   // ---------- Exportar / importar ----------
   const download = (name, content, type) => {
+    // Android (app): guarda en caché y abre el menú nativo de compartir
+    const P = window.Capacitor && window.Capacitor.Plugins;
+    if (isCapacitor && P && P.Filesystem && P.Share) {
+      P.Filesystem.writeFile({ path: name, data: content, directory: 'CACHE', encoding: 'utf8' })
+        .then(r => P.Share.share({ title: name, url: r.uri, dialogTitle: 'Guardar o compartir' }))
+        .catch(() => toast('No se pudo exportar el archivo'));
+      return;
+    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([content], { type }));
     a.download = name; document.body.appendChild(a); a.click(); a.remove();
@@ -802,6 +820,6 @@
   // ---------- Arranque ----------
   route();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    if (!isNative) navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 })();

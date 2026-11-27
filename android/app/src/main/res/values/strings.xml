@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">DOMI</string>
+    <string name="title_activity_main">DOMI</string>
+    <string name="package_name">app.domi.finanzas</string>
+    <string name="custom_url_scheme">app.domi.finanzas</string>
+</resources>

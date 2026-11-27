@@ -1,0 +1,104 @@
+# Compila DOMI para Mac, Windows y Android.
+# - En cada push: compila y deja los instaladores como "artifacts" para probar.
+# - Al publicar un Release en GitHub: adjunta DOMI-mac.dmg, DOMI-windows.exe y DOMI-android.apk.
+name: Instaladores DOMI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths-ignore: ['**.md', 'site/**']
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  # Versión mostrada en la app (toma el tag del release, p. ej. v1.2.0 -> 1.2.0)
+  DOMI_VERSION_NAME: ${{ github.event_name == 'release' && github.event.release.tag_name || '1.0.0' }}
+
+jobs:
+  desktop:
+    name: Escritorio (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Mac
+            os: macos-latest
+            script: dist:mac
+            file: dist/DOMI-mac.dmg
+          - name: Windows
+            os: windows-latest
+            script: dist:win
+            file: dist/DOMI-windows.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Ajustar versión
+        shell: bash
+        run: npm pkg set version="${DOMI_VERSION_NAME#v}"
+      - name: Empaquetar
+        run: npm run ${{ matrix.script }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DOMI-${{ matrix.name }}
+          path: ${{ matrix.file }}
+          if-no-files-found: error
+
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - name: Copiar la app web al proyecto Android
+        run: npx cap sync android
+      - name: Compilar APK
+        working-directory: android
+        env:
+          DOMI_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          export DOMI_VERSION_NAME="${DOMI_VERSION_NAME#v}"
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+      - run: cp android/app/build/outputs/apk/debug/app-debug.apk DOMI-android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DOMI-Android
+          path: DOMI-android.apk
+          if-no-files-found: error
+
+  release:
+    name: Publicar en el Release
+    if: github.event_name == 'release'
+    needs: [desktop, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/DOMI-mac.dmg
+            out/DOMI-windows.exe
+            out/DOMI-android.apk

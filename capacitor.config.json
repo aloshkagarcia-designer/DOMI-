@@ -1,0 +1,17 @@
+{
+  "appId": "app.domi.finanzas",
+  "appName": "DOMI",
+  "webDir": "www",
+  "backgroundColor": "#050505",
+  "android": {
+    "allowMixedContent": false,
+    "adjustMarginsForEdgeToEdge": "auto"
+  },
+  "plugins": {
+    "StatusBar": {
+      "overlaysWebView": false,
+      "style": "DARK",
+      "backgroundColor": "#050505"
+    }
+  }
+}

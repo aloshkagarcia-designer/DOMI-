@@ -1,0 +1,82 @@
+{
+  "name": "domi",
+  "productName": "DOMI",
+  "version": "1.0.0",
+  "description": "DOMI · Finanzas personales",
+  "author": "DOMI",
+  "private": true,
+  "main": "desktop/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:win": "electron-builder --win --publish never",
+    "android:sync": "cap sync android"
+  },
+  "build": {
+    "appId": "app.domi.finanzas",
+    "productName": "DOMI",
+    "copyright": "DOMI",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "desktop/**",
+      "www/**",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.finance",
+      "icon": "build/icon.png",
+      "artifactName": "DOMI-mac.${ext}",
+      "identity": null
+    },
+    "dmg": {
+      "title": "DOMI",
+      "background": null,
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "DOMI-windows.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "DOMI",
+      "language": "3082"
+    },
+    "afterPack": "build/adhoc-sign.js"
+  },
+  "devDependencies": {
+    "@capacitor/android": "7.6.10",
+    "@capacitor/assets": "3.0.5",
+    "@capacitor/cli": "7.6.10",
+    "@capacitor/core": "7.6.10",
+    "@capacitor/filesystem": "7.1.9",
+    "@capacitor/share": "7.0.4",
+    "@capacitor/status-bar": "7.0.6",
+    "electron": "38.8.6",
+    "electron-builder": "26.0.12"
+  }
+}
