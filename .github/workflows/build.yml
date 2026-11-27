@@ -1,5 +1,5 @@
 # Compila DOMI para Mac, Windows y Android.
-# - En cada push: compila y deja los instaladores como "artifacts" para probar.
+# - En cada push: compila para comprobar que todo funciona.
 # - Al publicar un Release en GitHub: adjunta DOMI-mac.dmg, DOMI-windows.exe y DOMI-android.apk.
 name: Instaladores DOMI
 
@@ -49,11 +49,15 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/upload-artifact@v4
+      - name: Confirmar instalador
+        shell: bash
+        run: ls -lh "${{ matrix.file }}"
+      # Se sube directo al Release (sin artifacts intermedios, que consumen cuota de almacenamiento)
+      - name: Adjuntar al Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
         with:
-          name: DOMI-${{ matrix.name }}
-          path: ${{ matrix.file }}
-          if-no-files-found: error
+          files: ${{ matrix.file }}
 
   android:
     name: Android
@@ -79,26 +83,12 @@ jobs:
           export DOMI_VERSION_NAME="${DOMI_VERSION_NAME#v}"
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
-      - run: cp android/app/build/outputs/apk/debug/app-debug.apk DOMI-android.apk
-      - uses: actions/upload-artifact@v4
+      - name: Confirmar instalador
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk DOMI-android.apk
+          ls -lh DOMI-android.apk
+      - name: Adjuntar al Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
         with:
-          name: DOMI-Android
-          path: DOMI-android.apk
-          if-no-files-found: error
-
-  release:
-    name: Publicar en el Release
-    if: github.event_name == 'release'
-    needs: [desktop, android]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: out
-          merge-multiple: true
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            out/DOMI-mac.dmg
-            out/DOMI-windows.exe
-            out/DOMI-android.apk
+          files: DOMI-android.apk
