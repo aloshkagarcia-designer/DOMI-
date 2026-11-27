@@ -199,6 +199,8 @@
     $('#tabbar').innerHTML = tab(NAV[0]) + tab(NAV[1]) + `<button class="fab" data-action="add" aria-label="Nuevo movimiento">${icon('plus', 2.4)}</button>` + tab(NAV[2]) + tab(NAV[3]);
     $('#monthLabel').textContent = monthName(ui.month);
     $('#monthSwitch').style.visibility = ['metas', 'ajustes'].includes(ui.view) ? 'hidden' : 'visible';
+    const gear = $('#topGear');
+    if (gear) { if (ui.view === 'ajustes') gear.setAttribute('aria-current', 'page'); else gear.removeAttribute('aria-current'); }
   };
 
   // ---------- Gráficas (SVG propio, sin librerías) ----------
