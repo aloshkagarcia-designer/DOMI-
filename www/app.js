@@ -60,6 +60,13 @@
     car: 'M5 17h14M6 17l1.6-6.5h8.8L18 17M5 17v3h2.5v-3M16.5 17v3H19v-3M3 11h2.5M18.5 11H21',
     house: 'M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6',
     copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
+    calc: 'M6 3h12v18H6zM9 7h6M9 11h.01M12 11h.01M15 11h.01M9 15h.01M12 15h.01M15 15h.01',
+    mega: 'M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a3 3 0 0 1 0 6M18 6a7 7 0 0 1 0 12',
+    box: 'M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8',
+    laptop: 'M4 5h16v10H4zM2 19h20',
+    truck: 'M3 6h11v10H3zM14 10h4l3 3v3h-7M7 19a2 2 0 1 0 0-.01M17 19a2 2 0 1 0 0-.01',
+    store: 'M4 9h16l-1-5H5zM5 9v11h14V9M9 20v-6h6v6',
+    arrowR: 'M5 12h14M13 6l6 6-6 6',
     chev: 'm9 18 6-6-6-6',
     bag: 'M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2',
     pulse: 'M3 12h4l2.5-5 4 10 2.5-5H21',
@@ -140,10 +147,33 @@
       { id: 'inversion', name: 'Inversión', icon: 'trend', color: '#a6ffcb' },
       { id: 'reembolso', name: 'Reembolso', icon: 'receipt', color: '#8aa5ff' },
       { id: 'regalo', name: 'Regalo', icon: 'gift', color: 'var(--cat-ink)' },
+      { id: 'negocio', name: 'Mi negocio', icon: 'store', color: '#3d6bff' },
       { id: 'otros-in', name: 'Otros', icon: 'coin', color: '#9a9a9e' }
     ]
   };
-  const ALL_CATS = [...CATS.expense, ...CATS.income];
+  // Negocio: categorías propias (lo que vende y en qué gasta un emprendedor)
+  const BIZ_CATS = {
+    expense: [
+      { id: 'software', name: 'Software', icon: 'code', color: '#3d6bff' },
+      { id: 'publicidad', name: 'Publicidad', icon: 'mega', color: '#6f8cff' },
+      { id: 'materiales', name: 'Materiales', icon: 'box', color: '#8aa5ff' },
+      { id: 'equipo', name: 'Equipo', icon: 'laptop', color: '#2238a8' },
+      { id: 'contador', name: 'Contador', icon: 'calc', color: '#a6b8ff' },
+      { id: 'comisiones', name: 'Comisiones', icon: 'card', color: '#5b7cff' },
+      { id: 'envios', name: 'Envíos', icon: 'truck', color: '#9fb4ff' },
+      { id: 'oficina', name: 'Oficina', icon: 'store', color: '#4a63c9' },
+      { id: 'equipo-trabajo', name: 'Sueldos a tu equipo', icon: 'users', color: '#c9d4ff' },
+      { id: 'impuestos-pago', name: 'Impuestos pagados', icon: 'receipt', color: '#7d8db8' },
+      { id: 'otros-biz', name: 'Otros', icon: 'dots', color: '#3a3a3e' }
+    ],
+    income: [
+      { id: 'servicios-biz', name: 'Servicios', icon: 'briefcase', color: '#3bff8a' },
+      { id: 'ventas', name: 'Productos', icon: 'bag', color: '#3d6bff' },
+      { id: 'otros-biz-in', name: 'Otros', icon: 'coin', color: '#9a9a9e' }
+    ]
+  };
+  const catsFor = (space, type) => (space === 'biz' ? BIZ_CATS : CATS)[type === 'income' ? 'income' : 'expense'];
+  const ALL_CATS = [...CATS.expense, ...CATS.income, ...BIZ_CATS.expense, ...BIZ_CATS.income];
   const cat = id => ALL_CATS.find(c => c.id === id) || CATS.expense.at(-1);
   // Subcategoría (p. ej. Servicios → Luz). Devuelve null si la categoría no tiene o no se eligió.
   const subOf = t => { const c = cat(t.cat); return (c.subs && t.sub && c.subs.find(s => s.id === t.sub)) || null; };
@@ -222,7 +252,8 @@
   };
 
   // ---------- Selectores de datos ----------
-  const inMonth = (m = ui.month) => state.tx.filter(t => t.date.startsWith(m));
+  const inMonth = (m = ui.month) => { const b = bizOn(); return state.tx.filter(t => t.date.startsWith(m) && (t.space === 'biz') === b); };
+  const inMonthP = m => state.tx.filter(t => t.date.startsWith(m) && t.space !== 'biz');
   // Signo de cada movimiento sobre tu dinero disponible.
   // Aportar a una inversión resta del balance, pero NO es gasto; retirar lo regresa.
   // Pagar una deuda o prestarle a alguien resta; cobrar regresa. Ninguno es gasto ni ingreso.
@@ -387,6 +418,14 @@
         <div class="tx-amt num invest">${t.dir === 'out' ? '+' : '→ '}${money(t.amount)}</div>
       </li>`;
     }
+    if (t.type === 'draw' || t.type === 'taxset') {
+      const draw = t.type === 'draw';
+      return `<li class="tx" data-edit="${t.id}" tabindex="0" role="button" aria-label="${draw ? 'Te pagaste' : 'Impuestos apartados'}">
+        <div class="tx-ico invest">${icon(draw ? 'person' : 'calc')}</div>
+        <div class="tx-main"><div class="tx-title">${draw ? 'Te pagaste' : 'Impuestos apartados'}${t.recurId ? `<span class="tx-flags">${icon('repeat')}</span>` : ''}</div><div class="tx-meta"><span>${draw ? 'Sueldo · pasa a Personal' : 'Guardado aparte · no es gasto'} · ${esc(t.account)}</span></div></div>
+        <div class="tx-amt num invest">→ ${money(t.amount)}</div>
+      </li>`;
+    }
     if (t.type === 'debt' || t.type === 'collect' || t.type === 'lend') {
       const m = { debt: ['card', 'Pago de deuda', '−'], collect: ['check', 'Cobro recibido', '+'], lend: ['person', 'Préstamo a', '→ '] }[t.type];
       return `<li class="tx" data-edit="${t.id}" tabindex="0" role="button" aria-label="${esc(m[1] + ' ' + (t.note || ''))}">
@@ -398,7 +437,7 @@
     const c = cat(t.cat), s = subOf(t);
     const title = t.note || (s ? s.name : c.name);
     const flags = (t.receipt ? icon('receipt') : '') + (t.recurId ? icon('repeat') : '');
-    const status = t.reimb ? `<span class="status ${t.reimb === 'done' ? 'done' : ''}">${t.reimb === 'done' ? 'Reembolsado' : 'Por reembolsar'}</span>` : '';
+    const status = t.reimb ? `<span class="status ${t.reimb === 'done' ? 'done' : ''}">${t.reimb === 'done' ? 'Reembolsado' : 'Por reembolsar'}</span>` : t.cfdi ? '<span class="status cfdi">CFDI</span>' : '';
     return `<li class="tx" data-edit="${t.id}" tabindex="0" role="button" aria-label="Editar ${esc(title)}">
       <div class="tx-ico ${t.type}">${icon(s ? s.icon : c.icon)}</div>
       <div class="tx-main">
@@ -531,7 +570,10 @@
       let guard = 0;
       while (r.next <= t0 && guard++ < 60) {
         const id = `r-${r.id}-${r.next}`;   // id fijo: dos dispositivos generan el mismo registro, sin duplicados
-        if (!state.tx.some(t => t.id === id)) state.tx.push({ ...r.template, id, date: r.next, recurId: r.id, receipt: null, reimb: null, created: parseISO(r.next).getTime() });
+        if (!state.tx.some(t => t.id === id)) {
+          if (r.template.type === 'draw') state.tx.push(...drawPair(r.template.amount, r.next, r.template.account, { id, recurId: r.id, created: parseISO(r.next).getTime() }));
+          else state.tx.push({ ...r.template, id, date: r.next, recurId: r.id, receipt: null, reimb: null, created: parseISO(r.next).getTime() });
+        }
         r.next = addFreq(r.next, r.freq, r.day); changed = true;
       }
     });
@@ -616,6 +658,7 @@
   };
 
   const viewInicio = () => {
+    if (bizOn()) return viewNegocio();
     const list = inMonth();
     const { inc, exp, inv, bal } = totals(list);
     if (!state.tx.length) {
@@ -636,7 +679,7 @@
 
     const legendData = cats.length > 5 ? [...cats.slice(0, 4), { name: 'Otras', color: '#3a3a3e', value: sum(cats.slice(4), c => c.value) }] : cats;
 
-    return `<div class="page-head"><div><div class="eyebrow">${greeting()}</div><h1 class="h1">Resumen<span>.</span></h1></div></div>
+    return `${spaceSwitch()}<div class="page-head"><div><div class="eyebrow">${greeting()}</div><h1 class="h1">Resumen<span>.</span></h1></div></div>
     ${noticeBanner()}
     <div class="grid dash">
       <section class="hero" aria-label="Balance del mes">
@@ -741,7 +784,7 @@
   const viewMovimientos = () => {
     let list = inMonth();
     const q = ui.q.trim().toLowerCase();
-    if (ui.type === 'reimb') list = state.tx.filter(t => t.reimb);
+    if (ui.type === 'reimb' && !bizOn()) list = state.tx.filter(t => t.reimb);
     else if (ui.type !== 'all') list = list.filter(t => t.type === ui.type);
     if (ui.cat !== 'all') list = list.filter(t => t.cat === ui.cat);
     if (q) list = list.filter(t => (t.note + ' ' + txLabel(t) + ' ' + t.account).toLowerCase().includes(q));
@@ -751,7 +794,7 @@
     const pill = (v, l) => `<button class="pill" data-filter-type="${v}" aria-pressed="${ui.type === v}">${l}</button>`;
 
     const cal = ui.hview === 'cal';
-    const head = `<div class="page-head"><div><div class="eyebrow">${ui.type === 'reimb' && !cal ? 'Todos los meses' : esc(monthName(ui.month))}</div><h1 class="h1">Movimientos<span>.</span></h1></div>
+    const head = `${state.business ? spaceSwitch() : ''}<div class="page-head"><div><div class="eyebrow">${ui.type === 'reimb' && !cal ? 'Todos los meses' : esc(monthName(ui.month))}${bizOn() ? ' · ' + esc(state.business.name || 'Negocio') : ''}</div><h1 class="h1">Movimientos<span>.</span></h1></div>
       <div class="head-actions"><button class="btn sm" data-action="stmt">${icon('upload')}Importar</button><button class="btn sm" data-action="export-csv">${icon('download')}Exportar</button></div></div>
     <div class="seg hview" role="tablist" aria-label="Vista">
       <button type="button" role="tab" data-hview="list" aria-pressed="${!cal}" aria-selected="${!cal}">${icon('list')}Lista</button>
@@ -762,8 +805,8 @@
     return `${head}
     <div class="toolbar">
       <label class="search">${icon('search')}<span class="sr-only">Buscar</span><input id="q" type="search" placeholder="Buscar por nota, categoría o cuenta" value="${esc(ui.q)}" autocomplete="off"></label>
-      <div class="filters">${pill('all', 'Todos')}${pill('expense', 'Gastos')}${pill('income', 'Ingresos')}${pill('reimb', 'Reembolsables')}
-        <select class="pill" id="catFilter" aria-label="Filtrar por categoría"><option value="all">Categoría</option>${ALL_CATS.map(c => `<option value="${c.id}" ${ui.cat === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}</select>
+      <div class="filters">${pill('all', 'Todos')}${pill('expense', 'Gastos')}${pill('income', bizOn() ? 'Ventas' : 'Ingresos')}${bizOn() ? '' : pill('reimb', 'Reembolsables')}
+        <select class="pill" id="catFilter" aria-label="Filtrar por categoría"><option value="all">Categoría</option>${[...catsFor(bizOn() ? 'biz' : '', 'expense'), ...catsFor(bizOn() ? 'biz' : '', 'income')].map(c => `<option value="${c.id}" ${ui.cat === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}</select>
       </div>
     </div>
     <div class="summary-row">
@@ -783,13 +826,14 @@
     const list = inMonth();
     const spent = {};
     list.filter(t => t.type === 'expense').forEach(t => { spent[t.cat] = (spent[t.cat] || 0) + t.amount; });
-    const entries = Object.entries(state.budgets).filter(([, v]) => v > 0);
+    const spaceCats = new Set(catsFor(bizOn() ? 'biz' : '', 'expense').map(c => c.id));
+    const entries = Object.entries(state.budgets).filter(([k, v]) => v > 0 && spaceCats.has(k));
     const totalB = sum(entries, ([, v]) => v);
     const totalS = sum(entries, ([id]) => spent[id] || 0);
     const pct = totalB ? (totalS / totalB) * 100 : 0;
     const level = p => p >= 100 ? 'over' : p >= 80 ? 'warn' : '';
 
-    return `<div class="page-head"><div><div class="eyebrow">${esc(monthName(ui.month))}</div><h1 class="h1">Límites<span>.</span></h1><p class="lede">Define cuánto quieres gastar por categoría. Te avisamos al 80%.</p></div>
+    return `${state.business ? spaceSwitch() : ''}<div class="page-head"><div><div class="eyebrow">${esc(monthName(ui.month))}</div><h1 class="h1">Límites<span>.</span></h1><p class="lede">Define cuánto quieres gastar por categoría. Te avisamos al 80%.</p></div>
       <button class="btn green sm" data-action="budget">${icon('plus', 2.2)}Nuevo límite</button></div>
     ${entries.length ? `<div class="grid two-col">
       <section class="card"><div class="ring-wrap">${ring(pct, 96, pct >= 100 ? 'var(--danger)' : pct >= 80 ? 'var(--blue)' : 'var(--green)')}
@@ -1062,10 +1106,10 @@
   };
   // Movimiento de deuda o cobro tocado desde el historial
   const moveSheet = t => {
-    const title = { debt: 'Pago de deuda', collect: 'Cobro recibido', lend: 'Préstamo' }[t.type];
+    const title = t.pairId ? 'Sueldo de tu negocio' : { debt: 'Pago de deuda', collect: 'Cobro recibido', lend: 'Préstamo', draw: 'Te pagaste', taxset: 'Impuestos apartados' }[t.type];
     return `${sheetHead(title)}
     <div class="inv-stats" style="grid-template-columns:1fr 1fr"><div><span class="eyebrow">Monto</span><b class="num">${money(t.amount)}</b></div><div><span class="eyebrow">Fecha</span><b>${esc(dayLabel(t.date))}</b></div></div>
-    <p class="lede" style="margin:14px 0 0">${esc(t.note || '')} · ${esc(t.account)}. ${t.type === 'collect' ? 'Al eliminarlo, vuelve a quedar pendiente de cobro.' : t.type === 'debt' ? 'Al eliminarlo, el saldo de la deuda vuelve a subir.' : ''}</p>
+    <p class="lede" style="margin:14px 0 0">${esc(t.note || '')} · ${esc(t.account)}. ${t.type === 'draw' || t.pairId ? 'Al eliminarlo se quita en Negocio y en Personal.' : t.type === 'taxset' ? 'Al eliminarlo, el dinero vuelve al disponible del negocio.' : t.type === 'collect' ? 'Al eliminarlo, vuelve a quedar pendiente de cobro.' : t.type === 'debt' ? 'Al eliminarlo, el saldo de la deuda vuelve a subir.' : ''}</p>
     <div class="sheet-actions"><button type="button" class="btn danger" data-action="move-del" data-id="${t.id}">${icon('trash')}Eliminar movimiento</button></div>`;
   };
   // Mensaje de recordatorio de cobro (WhatsApp o menú de compartir)
@@ -1132,13 +1176,13 @@
 
   const simAffordOut = s => {
     const price = parseAmount(s.price);
-    const m = ym(new Date()), end = `${m}-31`, list = inMonth(m), bal = sum(list, signed);
+    const m = ym(new Date()), end = `${m}-31`, list = inMonthP(m), bal = sum(list, signed);
     const up = upcoming(31).filter(x => x.date <= end), pendOut = sum(up, x => x.amount);
     const recIn = (state.recurring || []).filter(r => r.active && r.template.type === 'income');
     let pendIn = 0; recIn.forEach(r => { let d = r.next, g = 0; while (d <= end && g++ < 6) { pendIn += r.template.amount; d = addFreq(d, r.freq, r.day); } });
     const nowMonth = s.pay === 'msi' ? price / (+s.msi || 1) : price;
     const left = bal + pendIn - pendOut - nowMonth;
-    const monthlyInc = sum(inMonth(shiftYM(m, -1)).filter(t => t.type === 'income'), t => t.amount) || sum(list.filter(t => t.type === 'income'), t => t.amount);
+    const monthlyInc = sum(inMonthP(shiftYM(m, -1)).filter(t => t.type === 'income'), t => t.amount) || sum(list.filter(t => t.type === 'income'), t => t.amount);
     const cushion = Math.max(1000, monthlyInc * 0.1);
     const verdict = !price ? '' : left < 0 ? ['bad', `Te faltarían <b>${money(-left, { compact: true })}</b> para cerrar el mes.`] : left < cushion ? ['warn', `Te alcanza justo: quedarías con <b>${money(left, { compact: true })}</b>. Poco margen para imprevistos.`] : ['ok', `Sí te alcanza: cierras el mes con <b>${money(left, { compact: true })}</b>.`];
     return `<div class="sim-rows">
@@ -1415,6 +1459,152 @@
     return `<div class="share-row">${icon('users')}<span><b>Compartido</b><small>${n} de ${h.members.length} ${h.members.length === 1 ? 'persona' : 'personas'} en DOMI · cifrado</small></span><button class="btn sm" data-action="home-share">Invitar</button></div>`;
   };
 
+
+  // =====================================================================
+  // Personal | Negocio: dos espacios en la misma app
+  // Los movimientos del negocio llevan space:'biz'. «Págate un sueldo» mueve dinero
+  // de Negocio a Personal (retiro del dueño: no es gasto del negocio; en Personal es ingreso).
+  // =====================================================================
+  const bizOn = () => !!(state.business && state.settings.space === 'biz');
+  const pctD = n => `${(Math.round(n * 10) / 10).toLocaleString('es-MX')}%`;
+  const bizStats = (m = ui.month) => {
+    const list = state.tx.filter(t => t.space === 'biz' && t.date.startsWith(m));
+    const sales = sum(list.filter(t => t.type === 'income'), t => t.amount);
+    const costs = sum(list.filter(t => t.type === 'expense'), t => t.amount);
+    const draws = list.filter(t => t.type === 'draw'), taxset = list.filter(t => t.type === 'taxset');
+    const pct = +(state.business?.taxPct ?? 12.5) || 0;
+    const taxSug = Math.round(sales * pct / 100);
+    const taxSaved = sum(taxset, t => t.amount);
+    const cfdi = list.filter(t => t.type === 'expense' && t.cfdi);
+    // Disponible del negocio: todo lo que ha entrado menos lo que ha salido, desde el inicio
+    const avail = Math.round(sum(state.tx.filter(t => t.space === 'biz' && t.date <= today()), signed) * 100) / 100;
+    const taxPending = Math.max(0, taxSug - taxSaved);
+    return { list, sales, costs, profit: sales - costs, margin: sales ? ((sales - costs) / sales) * 100 : 0, draws, drawn: sum(draws, t => t.amount), taxset, taxSug, taxSaved, taxPending, pct,
+      cfdi, cfdiSum: sum(cfdi, t => t.amount), avail, payMax: Math.max(0, Math.floor((avail - taxPending) / 100) * 100) };
+  };
+  const spaceSwitch = () => `<div class="space" role="group" aria-label="Espacio"><button type="button" class="p" data-space="personal" aria-pressed="${!bizOn()}"><i></i>Personal</button><button type="button" class="n" data-space="biz" aria-pressed="${bizOn()}"><i></i>Negocio</button></div>`;
+  const clientsOpen = () => (state.receivables || []).filter(r => r.kind === 'client' && recvPending(r) > 0.5).sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
+  const bizBars = list => {
+    const rows = byCat(list).slice(0, 6), max = Math.max(...rows.map(r => r.value), 1);
+    return rows.length ? `<div class="cbar">${rows.map(r => `<div><span>${esc(r.name)}</span><i style="width:${(r.value / max) * 100}%"></i><b class="num">${money(r.value, { compact: true })}</b></div>`).join('')}</div>` : '<div class="cal-empty">Aún no hay gastos del negocio este mes.</div>';
+  };
+
+  const viewNegocio = () => {
+    const b = state.business, s = bizStats(), { int, cents } = moneySplit(s.profit);
+    const clients = clientsOpen();
+    const rows = [];
+    if (s.taxPending > 0.5) rows.push(`<div class="alert-row blue">${icon('calc')}<span><b>Aparta ${money(s.taxPending, { compact: true })}</b><small>Para impuestos · ${pctD(s.pct)} de tus ventas${s.taxSaved ? ` · llevas ${money(s.taxSaved, { compact: true })}` : ''}</small></span><button class="btn sm" data-action="biz-tax">Apartar</button></div>`);
+    else if (s.sales) rows.push(`<div class="alert-row green">${icon('check')}<span><b>Impuestos apartados</b><small>${money(s.taxSaved, { compact: true })} este mes · ${pctD(s.pct)} de tus ventas</small></span></div>`);
+    if (s.payMax > 0) rows.push(`<div class="alert-row green">${icon('person')}<span><b>Págate un sueldo</b><small>Hasta ${money(s.payMax, { compact: true })} sin tocar impuestos</small></span><button class="btn sm green" data-action="biz-pay">Pagarme</button></div>`);
+    clients.slice(0, 2).forEach(r => {
+      const due = r.dueDate ? Math.round((parseISO(r.dueDate) - parseISO(today())) / 86400000) : null;
+      const late = due !== null && due < 0;
+      rows.push(`<div class="alert-row ${late ? 'red' : ''}">${icon(late ? 'alert' : 'briefcase')}<span><b>${money(recvPending(r), { compact: true })} por cobrar</b><small>${esc(r.name)}${due === null ? '' : late ? ` · venció hace ${-due} ${-due === 1 ? 'día' : 'días'}` : due === 0 ? ' · vence hoy' : ` · vence en ${due} ${due === 1 ? 'día' : 'días'}`}</small></span><button class="btn sm green" data-collect="${r.id}">Cobrar</button></div>`);
+    });
+    const recent = sorted(s.list).slice(0, 6);
+    return `${spaceSwitch()}
+    <div class="grid dash">
+      <section class="hero biz"><div class="hero-top"><div class="eyebrow">Utilidad · ${esc(monthName(ui.month).split(' ')[0])}</div><button class="biz-tag" data-action="biz-setup">${icon('briefcase')}${esc(b.name || 'Mi negocio')}</button></div>
+        <div class="hero-amount num"><span class="sign">${s.profit < 0 ? '−' : ''}</span>${esc(int)}<span class="cents">${esc(cents)}</span></div>
+        <div class="hero-sub">${s.sales ? `Margen <b class="${s.margin >= 0 ? 'pos' : ''}">${pctFmt(s.margin)}</b> · vendiste <b>${money(s.sales, { compact: true })}</b>.` : 'Registra tu primera venta con el botón +.'}</div>
+        <div class="hero-stats">
+          <div class="hero-stat"><div class="eyebrow"><i class="dot g"></i>Ventas</div><strong class="num">${money(s.sales, { compact: true })}</strong></div>
+          <div class="hero-stat"><div class="eyebrow"><i class="dot b"></i>Gastos</div><strong class="num">${money(s.costs, { compact: true })}</strong></div>
+          <div class="hero-stat"><div class="eyebrow"><i class="dot w"></i>Impuestos</div><strong class="num">${money(s.taxSug, { compact: true })}</strong></div>
+        </div></section>
+      <section class="card c-biz-acts"><div class="card-head" style="margin-bottom:6px"><h2 class="h2">Este mes</h2><a class="link" href="#reporte">Reporte</a></div>
+        ${rows.join('') || '<div class="cal-empty">Registra ventas y gastos del negocio con el botón +. Aquí verás qué apartar para impuestos, cuánto puedes pagarte y qué te deben tus clientes.</div>'}
+        <div class="biz-avail"><span>Disponible en el negocio</span><b class="num">${money(s.avail, { compact: true })}</b></div>
+      </section>
+      <section class="card c-biz-cats"><div class="card-head" style="margin-bottom:12px"><h2 class="h2">En qué se va</h2><span class="eyebrow">${money(s.costs, { compact: true })}</span></div>${bizBars(s.list)}</section>
+      <section class="card c-biz-recent"><div class="card-head"><h2 class="h2">Movimientos del negocio</h2><a class="link" href="#movimientos">Ver todos</a></div>
+        ${recent.length ? `<ul class="tx-list">${recent.map(txRow).join('')}</ul>` : '<div class="cal-empty">Sin movimientos este mes.</div>'}</section>
+    </div>`;
+  };
+
+  const viewReporte = () => {
+    if (!state.business) return emptyState('Activa tu negocio', 'Separa las finanzas de tu negocio de las personales para ver tu reporte mensual.', '<button class="btn green" data-action="biz-setup">Activar negocio</button>');
+    const s = bizStats();
+    const byClient = {};
+    s.list.filter(t => t.type === 'income').forEach(t => { const k = (t.note || cat(t.cat).name).split(' · ')[0]; byClient[k] = (byClient[k] || 0) + t.amount; });
+    const top = Object.entries(byClient).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return `<div class="page-head"><div><div class="eyebrow">${esc(state.business.name || 'Negocio')} · ${esc(monthName(ui.month))}</div><h1 class="h1">Reporte<span>.</span></h1></div><button class="btn sm" data-action="biz-export">${icon('download')}Contador</button></div>
+    <div class="grid two-col">
+      <section class="card"><div class="card-head" style="margin-bottom:4px"><h2 class="h2">Resultado del mes</h2><span class="biz-tag">Estimado</span></div>
+        <div class="pl"><div><span>Ventas<small>${s.list.filter(t => t.type === 'income').length} cobros</small></span><b class="num">${money(s.sales)}</b></div>
+        <div><span>Gastos del negocio<small>${s.list.filter(t => t.type === 'expense').length} gastos</small></span><b class="num">− ${money(s.costs)}</b></div>
+        <div><span class="t">Utilidad</span><b class="num t ${s.profit >= 0 ? 'pos' : ''}">${s.profit < 0 ? '−' : ''}${money(Math.abs(s.profit))}</b></div>
+        <div><span>Con factura (deducibles)<small>${s.cfdi.length} de ${s.list.filter(t => t.type === 'expense').length} gastos</small></span><b class="num">${money(s.cfdiSum)}</b></div>
+        <div><span>Apartado para impuestos<small>Sugerido ${money(s.taxSug, { compact: true })} · ${pctD(s.pct)} de ventas</small></span><b class="num">${money(s.taxSaved)}</b></div>
+        <div><span>Te pagaste<small>${s.draws.length} ${s.draws.length === 1 ? 'retiro' : 'retiros'}</small></span><b class="num">${money(s.drawn)}</b></div></div>
+        <p class="inv-note" style="margin-top:10px">Cifras orientativas para llevar control. Tu contador define los impuestos reales según tu régimen.</p></section>
+      <section class="card"><div class="card-head" style="margin-bottom:12px"><h2 class="h2">En qué se va</h2></div>${bizBars(s.list)}
+        ${top.length ? `<div class="card-head" style="margin:20px 0 12px"><h2 class="h2">Quién te compra</h2></div><div class="cbar g">${top.map(([k, v]) => `<div><span>${esc(k)}</span><i style="width:${(v / top[0][1]) * 100}%"></i><b class="num">${money(v, { compact: true })}</b></div>`).join('')}</div>` : ''}</section>
+    </div>`;
+  };
+
+  const bizForm = () => {
+    const b = state.business || { name: '', taxPct: 12.5 };
+    return `${sheetHead(state.business ? 'Mi negocio' : 'Activa tu negocio')}
+    <form id="bizForm" autocomplete="off">
+      ${state.business ? '' : '<p class="lede" style="margin:-6px 0 6px">Separa lo que vendes y gastas en tu negocio de tus finanzas personales. Cambias de espacio con el interruptor de arriba.</p>'}
+      <label><span class="field-label">Nombre del negocio</span><input class="input" name="name" maxlength="32" required placeholder="Ej. Estudio Aloshka" value="${esc(b.name)}"></label>
+      <label><span class="field-label">Apartar para impuestos</span><span class="hm-in wide" style="width:100%;height:52px"><input name="pct" inputmode="decimal" value="${b.taxPct}" style="width:100%;text-align:left;font-size:17px"><em>% de lo que vendes</em></span></label>
+      <p class="inv-note">Pregúntale a tu contador qué porcentaje te conviene apartar según tu régimen. DOMI solo te ayuda a guardarlo cada mes.</p>
+      <div class="sheet-actions">${state.business ? `<button type="button" class="btn danger" data-action="biz-off" style="flex:0 0 auto;width:52px;padding:0" aria-label="Desactivar negocio">${icon('trash')}</button>` : ''}<button class="btn green">${state.business ? 'Guardar' : 'Activar negocio'}</button></div>
+    </form>`;
+  };
+
+  const paySheet = () => {
+    const s = bizStats(), amt = s.payMax || '';
+    return `${sheetHead('Págate un sueldo')}
+    <form id="payForm" autocomplete="off">
+      <div class="flow"><div class="box n"><small>De</small><b>Negocio</b><small>Disponible ${money(s.avail, { compact: true })}</small></div>${icon('arrowR', 2)}<div class="box p"><small>A</small><b>Personal</b><small>Tu sueldo</small></div></div>
+      <label class="amount-field"><span class="cur">${esc(curSymbol())}</span><span class="sr-only">Monto</span><input name="amount" inputmode="decimal" placeholder="0" value="${amt}" required></label>
+      <div class="mini"><div><small>Utilidad</small><b class="num">${money(s.profit, { compact: true })}</b></div><div><small>Impuestos</small><b class="num">${money(s.taxPending, { compact: true })}</b></div><div><small>Puedes</small><b class="num">${money(s.payMax, { compact: true })}</b></div></div>
+      <div class="row2" style="margin-top:12px">
+        <label><span class="field-label">Cuenta</span><select class="input" name="account">${ACCOUNTS.map(a => `<option ${a === 'Transferencia' ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
+        <label><span class="field-label">Fecha</span><input class="input" type="date" name="date" value="${today()}" required></label>
+      </div>
+      <button type="button" class="toggle-row" role="switch" aria-checked="${!!ui.payRecur}" data-action="pay-recur"><span><b>Cada quincena</b><small>DOMI lo registra solo el 15 y el último de cada mes</small></span><span class="switch" aria-hidden="true" aria-checked="${!!ui.payRecur}"></span></button>
+      <div class="toggle-row note-row"><span><b>No es gasto del negocio</b><small>No baja tu utilidad. En Personal entra como ingreso «Sueldo de mi negocio».</small></span></div>
+      <div class="sheet-actions"><button class="btn green">Pagarme</button></div>
+    </form>`;
+  };
+  const taxSheet = () => {
+    const s = bizStats();
+    return `${sheetHead('Apartar para impuestos')}
+    <form id="taxForm" autocomplete="off">
+      <label class="amount-field"><span class="cur">${esc(curSymbol())}</span><span class="sr-only">Monto</span><input name="amount" inputmode="decimal" placeholder="0" value="${s.taxPending ? Math.round(s.taxPending) : ''}" required></label>
+      <div class="mini"><div><small>Ventas</small><b class="num">${money(s.sales, { compact: true })}</b></div><div><small>Sugerido</small><b class="num">${money(s.taxSug, { compact: true })}</b></div><div><small>Ya apartaste</small><b class="num">${money(s.taxSaved, { compact: true })}</b></div></div>
+      <div class="row2" style="margin-top:12px">
+        <label><span class="field-label">Cuenta</span><select class="input" name="account">${ACCOUNTS.map(a => `<option ${a === 'Transferencia' ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
+        <label><span class="field-label">Fecha</span><input class="input" type="date" name="date" value="${today()}" required></label>
+      </div>
+      <div class="toggle-row note-row"><span><b>Guárdalo aparte</b><small>Pásalo a una cuenta o apartado que no uses. Sale del disponible del negocio, pero no es gasto. Apartas ${pctD(s.pct)} de tus ventas · <button type="button" class="link" data-action="biz-setup">cambiar</button></small></span></div>
+      <div class="sheet-actions"><button class="btn primary">Apartar</button></div>
+    </form>`;
+  };
+  // Retiro del dueño: un movimiento en Negocio y su ingreso en Personal, enlazados
+  const drawPair = (amount, date, account, extra = {}) => {
+    const id = extra.id || uid();
+    return [
+      { id, type: 'draw', space: 'biz', amount, date, account, note: 'Sueldo', created: Date.now(), ...extra },
+      { id: id + '-p', type: 'income', cat: 'negocio', amount, date, account, note: `Sueldo de ${state.business?.name || 'mi negocio'}`, pairId: id, created: Date.now() }
+    ];
+  };
+  const exportBiz = () => {
+    const s = bizStats();
+    if (!s.list.length) return toast('No hay movimientos del negocio este mes.');
+    const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const kind = t => ({ income: 'Venta', expense: 'Gasto', draw: 'Retiro del dueño', taxset: 'Apartado de impuestos' }[t.type] || t.type);
+    const rows = [['Fecha', 'Tipo', 'Categoría', 'Concepto', 'Cuenta', 'Factura (CFDI)', 'Monto', 'Moneda']]
+      .concat(sorted(s.list).reverse().map(t => [t.date, kind(t), t.type === 'income' || t.type === 'expense' ? cat(t.cat).name : '', t.note || '', t.account, t.type === 'expense' ? (t.cfdi ? 'Sí' : 'No') : '', signed(t), state.settings.currency]))
+      .concat([[], ['', 'Ventas', '', '', '', '', s.sales], ['', 'Gastos', '', '', '', '', -s.costs], ['', 'Utilidad', '', '', '', '', s.profit], ['', 'Gastos con factura', '', '', '', '', s.cfdiSum]]);
+    download(`domi-negocio-${ui.month}.csv`, '﻿' + rows.map(r => r.map(q).join(',')).join('\n'), 'text/csv;charset=utf-8');
+    toast('Reporte del negocio descargado');
+  };
+
   const viewPatrimonio = () => {
     const st = invStats(), saved = goalsSaved(), total = saved + st.value;
     const { int, cents } = moneySplit(total);
@@ -1450,6 +1640,7 @@
       ${syncCard()}
       <section class="card"><h2 class="h2" style="margin-bottom:6px">Perfil</h2><div class="set-list">
         <div class="set-row"><div><div class="label">Tu nombre</div><div class="hint">Para saludarte en el inicio</div></div><input id="setName" value="${esc(s.name)}" placeholder="Opcional" maxlength="24"></div>
+        <div class="set-row"><div><div class="label">Mi negocio</div><div class="hint">${state.business ? `${esc(state.business.name)} · apartas ${pctD(state.business.taxPct)} para impuestos` : 'Separa tus finanzas personales de las de tu negocio'}</div></div><button class="btn sm" data-action="biz-setup">${state.business ? 'Editar' : 'Activar'}</button></div>
         <div class="set-row"><div><div class="label">Hogar compartido</div><div class="hint">${state.household ? `${esc(state.household.name)} · ${state.household.members.length} personas` : 'Con quién vives y cómo se reparten'}</div></div><button class="btn sm" data-action="home-setup">${state.household ? 'Editar' : 'Configurar'}</button></div>
         <div class="set-row"><div><div class="label">Moneda</div><div class="hint">Formato de todos los montos</div></div><select id="setCur">${Object.keys(CURRENCIES).map(c => `<option ${c === s.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
         <div class="set-row"><div><div class="label">Modo oscuro</div><div class="hint">Negro profundo o blanco editorial</div></div><button class="switch" role="switch" aria-checked="${s.theme === 'dark'}" data-action="theme" aria-label="Modo oscuro"></button></div>
@@ -1468,7 +1659,7 @@
     <p class="lede" style="text-align:center;margin-top:28px;font-size:12px">DOMI · local-first · tus datos no salen de este dispositivo</p>`;
   };
 
-  const VIEWS = { inicio: viewInicio, movimientos: viewMovimientos, presupuestos: viewPresupuestos, deudas: viewDeudas, patrimonio: viewPatrimonio, hogar: viewHogar, ajustes: viewAjustes };
+  const VIEWS = { inicio: viewInicio, movimientos: viewMovimientos, presupuestos: viewPresupuestos, deudas: viewDeudas, patrimonio: viewPatrimonio, hogar: viewHogar, reporte: viewReporte, ajustes: viewAjustes };
 
   const render = () => {
     renderNav();
@@ -1490,17 +1681,18 @@
 
   const txForm = () => {
     const d = ui.draft;
-    const cats = CATS[d.type];
+    const biz = d.space === 'biz', cats = catsFor(d.space, d.type);
     if (!cats.some(c => c.id === d.cat)) d.cat = cats[0].id;
     return `${sheetHead(d.id ? 'Editar movimiento' : 'Nuevo movimiento')}
     <form id="txForm" autocomplete="off">
+      ${state.business && !d.home ? `<div class="space" role="group" aria-label="Espacio"><button type="button" class="p" data-txspace="personal" aria-pressed="${!biz}"><i></i>Personal</button><button type="button" class="n" data-txspace="biz" aria-pressed="${biz}"><i></i>Negocio</button></div>` : ''}
       <div class="seg" role="group" aria-label="Tipo">
         <button type="button" data-type="expense" aria-pressed="${d.type === 'expense'}">Gasto</button>
-        <button type="button" data-type="income" aria-pressed="${d.type === 'income'}">Ingreso</button>
+        <button type="button" data-type="income" aria-pressed="${d.type === 'income'}">${biz ? 'Venta' : 'Ingreso'}</button>
       </div>
       <label class="amount-field"><span class="cur">${esc(curSymbol())}</span><span class="sr-only">Monto</span>
         <input name="amount" inputmode="decimal" placeholder="0" value="${d.amount ? d.amount : ''}" required></label>
-      <span class="field-label">Categoría</span>
+      <span class="field-label">${biz ? (d.type === 'income' ? '¿Qué vendiste?' : 'Categoría del negocio') : 'Categoría'}</span>
       <div class="chips">${cats.map(c => `<button type="button" class="chip" data-cat="${c.id}" aria-pressed="${d.cat === c.id}">${icon(c.icon)}${c.name}</button>`).join('')}</div>
       ${cat(d.cat).subs ? `<div class="subcats" role="group" aria-label="Tipo de ${esc(cat(d.cat).name.toLowerCase())}">
         <span class="field-label">${{ servicios: '¿Qué servicio?', suscripciones: '¿Qué suscripción?', educacion: '¿Para quién?' }[d.cat] || '¿Qué tipo?'}</span>
@@ -1510,7 +1702,7 @@
         <label><span class="field-label">Fecha</span><input class="input" type="date" name="date" value="${d.date}" required></label>
         <label><span class="field-label">Cuenta</span><select class="input" name="account">${ACCOUNTS.map(a => `<option ${a === d.account ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
       </div>
-      <label><span class="field-label">Nota</span><input class="input" name="note" maxlength="60" placeholder="${d.type === 'income' ? 'Ej. Quincena' : d.cat === 'suscripciones' ? 'Ej. Netflix, Spotify, Smart Fit' : d.cat === 'servicios' ? 'Ej. Recibo CFE bimestral' : 'Ej. Súper de la semana'}" value="${esc(d.note || '')}"></label>
+      <label><span class="field-label">${biz ? (d.type === 'income' ? 'Cliente o proyecto' : 'Proveedor o concepto') : 'Nota'}</span><input class="input" name="note" maxlength="60" placeholder="${biz ? (d.type === 'income' ? 'Ej. Hotel Mar · Sitio web' : 'Ej. Adobe Creative Cloud') : d.type === 'income' ? 'Ej. Quincena' : d.cat === 'suscripciones' ? 'Ej. Netflix, Spotify, Smart Fit' : d.cat === 'servicios' ? 'Ej. Recibo CFE bimestral' : 'Ej. Súper de la semana'}" value="${esc(d.note || '')}"></label>
       ${d.type === 'expense' ? `
       <span class="field-label">Comprobante</span>
       <button type="button" class="receipt-drop" data-action="receipt">
@@ -1518,19 +1710,19 @@
         <span><b>${d.receipt ? 'Recibo adjunto' : 'Fotografiar recibo'}</b><small>${d.receipt ? 'Toca para reemplazar' : 'Guárdalo para garantías, facturas o reembolsos'}</small></span>
       </button>
       ${d.receipt ? `<button type="button" class="btn sm ghost" data-action="receipt-del" style="margin-top:8px">Quitar recibo</button>` : ''}
-      <button type="button" class="toggle-row" role="switch" aria-checked="${!!d.reimb}" data-action="reimb-toggle"><span><b>Gasto reembolsable</b><small>Lo pagaste tú, pero lo cubre tu trabajo o alguien más</small></span>
+      ${biz ? `<button type="button" class="toggle-row" role="switch" aria-checked="${!!d.cfdi}" data-action="cfdi-toggle"><span><b>Tiene factura (CFDI)</b><small>Es deducible: se suma a tu reporte para el contador</small></span><span class="switch" aria-hidden="true" aria-checked="${!!d.cfdi}"></span></button>` : ''}
+      <button type="button" class="toggle-row" ${biz ? 'hidden' : ''} role="switch" aria-checked="${!!d.reimb}" data-action="reimb-toggle"><span><b>Gasto reembolsable</b><small>Lo pagaste tú, pero lo cubre tu trabajo o alguien más</small></span>
         <span class="switch" aria-hidden="true" aria-checked="${!!d.reimb}"></span></button>
       ${d.reimb ? `<button type="button" class="toggle-row" role="switch" aria-checked="${d.reimb === 'done'}" data-action="reimb-done"><span><b>Ya me lo pagaron</b><small>Marca como reembolsado</small></span>
         <span class="switch" aria-hidden="true" aria-checked="${d.reimb === 'done'}"></span></button>` : ''}` : ''}
-      ${homeBlock(d)}
-      ${d.home ? '' : splitBlock(d)}
+      ${biz ? '' : homeBlock(d) + (d.home ? '' : splitBlock(d))}
       <button type="button" class="toggle-row" role="switch" aria-checked="${!!d.recur}" data-action="recur-toggle"><span><b>Se repite</b><small>${d.recur ? 'DOMI lo registrará solo en cada fecha' : 'Renta, Netflix, colegiatura, nómina…'}</small></span>
         <span class="switch" aria-hidden="true" aria-checked="${!!d.recur}"></span></button>
       ${d.recur ? `<div class="sub-chips recur-chips" role="group" aria-label="Frecuencia">${FREQS.map(f => `<button type="button" class="sub-chip" data-freq="${f.id}" aria-pressed="${d.recur === f.id}">${f.name}</button>`).join('')}</div>
       <p class="inv-note">Siguiente: ${esc(shortDate(addFreq(d.date || today(), d.recur, +(d.date || today()).slice(8))))}</p>` : ''}
       <div class="sheet-actions">
         ${d.id ? `<button type="button" class="btn danger" data-action="tx-del" style="flex:0 0 auto;width:52px;padding:0" aria-label="Eliminar">${icon('trash')}</button>` : ''}
-        <button type="submit" class="btn ${d.type === 'income' ? 'green' : 'primary'}">${d.id ? 'Guardar cambios' : d.type === 'income' ? 'Agregar ingreso' : 'Agregar gasto'}</button>
+        <button type="submit" class="btn ${d.type === 'income' ? 'green' : 'primary'}">${d.id ? 'Guardar cambios' : biz ? (d.type === 'income' ? 'Agregar venta' : 'Agregar gasto del negocio') : d.type === 'income' ? 'Agregar ingreso' : 'Agregar gasto'}</button>
       </div>
     </form>`;
   };
@@ -1616,9 +1808,9 @@
   const openTx = id => {
     const t = id && state.tx.find(x => x.id === id);
     if (t && t.type === 'invest') return openSheet(invTxSheet(t));
-    if (t && ['debt', 'collect', 'lend'].includes(t.type)) return openSheet(moveSheet(t));
+    if (t && (['debt', 'collect', 'lend', 'draw', 'taxset'].includes(t.type) || t.pairId)) return openSheet(moveSheet(t));
     const defDate = ui.month === ym(new Date()) ? today() : `${ui.month}-01`;
-    ui.draft = t ? { ...t } : { type: 'expense', amount: '', cat: 'comida', date: defDate, account: 'Débito', note: '', receipt: null, reimb: null };
+    ui.draft = t ? { ...t } : { type: 'expense', amount: '', cat: bizOn() ? 'software' : 'comida', date: defDate, account: 'Débito', note: '', receipt: null, reimb: null, ...(bizOn() ? { space: 'biz' } : {}) };
     if (t && t.home) { ui.draft.amount = t.home.total; ui.draft.home = { ...t.home }; }
     const r = t && t.recurId && (state.recurring || []).find(x => x.id === t.recurId && x.active);
     ui.draft.recur = r ? r.freq : null;
@@ -1631,7 +1823,7 @@
     return `${sheetHead(id ? 'Editar límite' : 'Nuevo límite')}
     <form id="budgetForm">
       <span class="field-label">Categoría</span>
-      <select class="input" name="cat" ${id ? 'disabled' : ''}>${CATS.expense.map(c => `<option value="${c.id}" ${c.id === id ? 'selected' : ''}>${c.name}${state.budgets[c.id] && c.id !== id ? ' · ya tiene límite' : ''}</option>`).join('')}</select>
+      <select class="input" name="cat" ${id ? 'disabled' : ''}>${catsFor(bizOn() ? 'biz' : '', 'expense').map(c => `<option value="${c.id}" ${c.id === id ? 'selected' : ''}>${c.name}${state.budgets[c.id] && c.id !== id ? ' · ya tiene límite' : ''}</option>`).join('')}</select>
       ${id ? `<input type="hidden" name="cat" value="${id}">` : ''}
       <label class="amount-field"><span class="cur">${esc(curSymbol())}</span><input name="amount" inputmode="decimal" placeholder="0" value="${cur || ''}" required aria-label="Límite mensual"></label>
       <p class="lede" style="text-align:center;margin-top:-8px">Límite mensual · se reinicia cada mes</p>
@@ -1997,8 +2189,8 @@
     if (!list.length) return toast('No hay movimientos para exportar en este periodo.');
     const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [['Fecha', 'Tipo', 'Categoría', 'Subcategoría', 'Cuenta', 'Nota', 'Monto', 'Moneda', 'Reembolso', 'Recibo']]
-      .concat(sorted(list).map(t => ['debt', 'collect', 'lend'].includes(t.type)
-        ? [t.date, { debt: 'Pago de deuda', collect: 'Cobro recibido', lend: 'Préstamo otorgado' }[t.type], 'Deudas', t.note || '', t.account, '', signed(t), state.settings.currency, '', '']
+      .concat(sorted(list).map(t => ['debt', 'collect', 'lend', 'draw', 'taxset'].includes(t.type)
+        ? [t.date, { debt: 'Pago de deuda', collect: 'Cobro recibido', lend: 'Préstamo otorgado', draw: 'Retiro del dueño', taxset: 'Apartado de impuestos' }[t.type], t.space === 'biz' ? 'Negocio' : 'Deudas', t.note || '', t.account, '', signed(t), state.settings.currency, '', '']
         : t.type === 'invest'
         ? [t.date, t.dir === 'out' ? 'Retiro de inversión' : 'Aportación a inversión', 'Patrimonio', state.investments.find(x => x.id === t.invId)?.name || t.note || '', t.account, '', signed(t), state.settings.currency, '', '']
         : [t.date, t.type === 'income' ? 'Ingreso' : 'Gasto', cat(t.cat).name, subOf(t)?.name || '', t.account, t.note, (t.type === 'income' ? 1 : -1) * t.amount, state.settings.currency, t.reimb === 'done' ? 'Reembolsado' : t.reimb ? 'Pendiente' : '', t.receipt ? 'Sí' : '']));
@@ -2018,7 +2210,19 @@
       const D = d => new Date(base.getFullYear(), base.getMonth(), Math.min(d, last), 12);
       add(D(1), 'income', 'salario', 18500, 'Quincena');
       if (last >= 15) add(D(15), 'income', 'salario', 18500, 'Quincena');
-      if (last >= 10) add(D(10), 'income', 'freelance', rnd(3500, 7000), 'Proyecto de branding', 'Transferencia');
+      const B = { space: 'biz' };
+      if (last >= 6) add(D(6), 'income', 'servicios-biz', rnd(14000, 22000), ['Hotel Mar · Sitio web', 'Café Raíz · Branding', 'Agencia Lumen · Campaña'][m % 3], 'Transferencia', B);
+      if (last >= 19) add(D(19), 'income', 'servicios-biz', rnd(9000, 16000), ['Estudio Norte · Identidad', 'Clínica Alba · Redes', 'Bodega 9 · Empaque'][m % 3], 'Transferencia', B);
+      if (last >= 24) add(D(24), 'income', 'ventas', rnd(2500, 6000), 'Plantillas digitales', 'Transferencia', B);
+      add(D(3), 'expense', 'software', 1299, 'Adobe Creative Cloud', 'Crédito', { ...B, cfdi: true });
+      add(D(4), 'expense', 'software', 359, 'Figma', 'Crédito', { ...B, cfdi: true });
+      if (last >= 9) add(D(9), 'expense', 'publicidad', rnd(1500, 3200), 'Meta Ads', 'Crédito', { ...B, cfdi: true });
+      if (last >= 12) add(D(12), 'expense', 'contador', 2500, 'Despacho Ruiz', 'Transferencia', { ...B, cfdi: true });
+      if (last >= 17) add(D(17), 'expense', 'materiales', rnd(400, 1600), 'Impresiones y pruebas', 'Débito', B);
+      if (last >= 20) add(D(20), 'expense', 'comisiones', rnd(180, 420), 'Comisión terminal', 'Débito', B);
+      if (last >= 15) tx.push(...drawPair(12000, iso(D(15)), 'Transferencia'));
+      if (m > 0) tx.push(...drawPair(12000, iso(D(last)), 'Transferencia'));
+      if (m > 0) tx.push({ id: uid(), type: 'taxset', space: 'biz', amount: 3500, date: iso(D(Math.min(last, 25))), account: 'Transferencia', note: 'Impuestos', created: D(25).getTime() });
       add(D(2), 'expense', 'hogar', 9800, 'Renta', 'Transferencia');
       add(D(3), 'expense', 'suscripciones', 219, 'Spotify', 'Crédito', { sub: 'musica' });
       add(D(3), 'expense', 'suscripciones', 650, 'Smart Fit', 'Débito', { sub: 'gimnasio' });
@@ -2074,7 +2278,7 @@
       if (byMom) t.note = t.note || ({ luz: 'Recibo de luz', agua: 'Recibo de agua', gas: 'Gas' }[t.sub] || '');
       t.amount = Math.round(t.amount * 0.6 * 100) / 100;
     });
-    state = { ...state, household: hh, tx, investments, budgets: { comida: 6000, servicios: 2200, gasolina: 3200, transporte: 1500, compras: 2500, ocio: 1500, suscripciones: 1400 },
+    state = { ...state, business: { name: 'Estudio Aloshka', taxPct: 12.5 }, household: hh, tx, investments, budgets: { comida: 6000, servicios: 2200, gasolina: 3200, transporte: 1500, compras: 2500, ocio: 1500, suscripciones: 1400 },
       goals: [
         { id: uid(), name: 'Fondo de emergencia', target: 60000, saved: 38500, deadline: `${now.getFullYear() + 1}-03-01` },
         { id: uid(), name: 'Viaje a Japón', target: 45000, saved: 12800, deadline: `${now.getFullYear() + 1}-10-01` },
@@ -2098,7 +2302,7 @@
       { id: uid(), kind: 'person', name: 'Olivia', concept: 'Paseo en lancha', amount: 2000, paid: 0, fromSplit: true, date: rel(-4), created: Date.now() },
       { id: uid(), kind: 'person', name: 'Jorge', concept: 'Paseo en lancha', amount: 2000, paid: 0, fromSplit: true, date: rel(-4), created: Date.now() }
     ];
-    state.tx.push({ id: uid(), type: 'income', cat: 'freelance', amount: 8500, account: 'Transferencia', date: rel(-2), note: 'Agencia Lumen · Campaña de lanzamiento', recvId: lumen.id, created: Date.now() });
+    state.tx.push({ id: uid(), type: 'income', cat: 'servicios-biz', space: 'biz', amount: 8500, account: 'Transferencia', date: rel(-2), note: 'Agencia Lumen · Campaña de lanzamiento', recvId: lumen.id, created: Date.now() });
     const mkRec = (note, cat0, sub, amount, day, freq = 'monthly', type = 'expense') => {
       let next = iso(new Date(now.getFullYear(), now.getMonth(), day, 12)); while (next <= today()) next = addFreq(next, freq, day);
       return { id: uid(), freq, day, active: true, next, template: { type, cat: cat0, sub, amount, account: 'Débito', note } };
@@ -2125,7 +2329,7 @@
   window.addEventListener('scroll', () => $('#topbar').classList.toggle('scrolled', scrollY > 4), { passive: true });
 
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-action],[data-homeiam],[data-settle],[data-hmdel],[data-hmmode],[data-homepaid],[data-sim],[data-simset],[data-simgoal],[data-dtab],[data-mtab],[data-debt],[data-debttype],[data-debtop],[data-recv],[data-recvkind],[data-collect],[data-remind],[data-ics-debt],[data-ics-rec],[data-splitpayer],[data-splitp],[data-splitinc],[data-splitdec],[data-syncmode],[data-freq],[data-recstop],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
+    const t = e.target.closest('[data-action],[data-space],[data-txspace],[data-homeiam],[data-settle],[data-hmdel],[data-hmmode],[data-homepaid],[data-sim],[data-simset],[data-simgoal],[data-dtab],[data-mtab],[data-debt],[data-debttype],[data-debtop],[data-recv],[data-recvkind],[data-collect],[data-remind],[data-ics-debt],[data-ics-rec],[data-splitpayer],[data-splitp],[data-splitinc],[data-splitdec],[data-syncmode],[data-freq],[data-recstop],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
     if (!t) return;
     const a = t.dataset.action;
 
@@ -2151,6 +2355,15 @@
     if (t.dataset.goalDel) { const i = state.goals.findIndex(g => g.id === t.dataset.goalDel); const [g] = state.goals.splice(i, 1); save(); render(); return toast('Meta eliminada', () => { state.goals.splice(i, 0, g); }); }
     if (t.dataset.op) { $$('[data-op]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
     // Hogar compartido
+    if (t.dataset.space) {
+      if (t.dataset.space === 'biz' && !state.business) return openSheet(bizForm());
+      state.settings.space = t.dataset.space; ui.type = 'all'; ui.cat = 'all'; save(); render(); haptic(); return;
+    }
+    if (t.dataset.txspace && ui.draft) {
+      syncDraft(); const v = t.dataset.txspace === 'biz' ? 'biz' : undefined;
+      ui.draft.space = v; ui.draft.cat = catsFor(v, ui.draft.type)[0].id; ui.draft.sub = null; ui.draft.reimb = null; ui.draft.home = null; ui.draft.split = null; ui.draft.cfdi = false;
+      return redrawTx();
+    }
     if (t.dataset.homeiam) {
       const h = home(), m = h.members.find(x => x.id === t.dataset.homeiam); if (!m || !sync) return;
       h.members.forEach(x => { if (x.uid === sync.userId) delete x.uid; }); m.uid = sync.userId; markMe(); homeRecalc(); save(); closeSheet(); render();
@@ -2291,7 +2504,11 @@
         if (mv.settleId && state.household) state.household.settles = (state.household.settles || []).filter(x => x.id !== mv.settleId);
         if (mv.type === 'debt') { const d = (state.debts || []).find(x => x.id === mv.debtId); if (d) d.balance = Math.round((d.balance + mv.amount) * 100) / 100; }
         if (mv.type === 'collect' || (mv.type === 'income' && mv.recvId)) { const r = (state.receivables || []).find(x => x.id === mv.recvId); if (r) r.paid = Math.max(0, Math.round(((r.paid || 0) - mv.amount) * 100) / 100); }
-        state.tx.splice(k, 1); save(); closeSheet(); render();
+        state.tx.splice(k, 1);
+        const pair = mv.pairId || (mv.type === 'draw' ? mv.id + '-p' : null);
+        if (pair) { const j = state.tx.findIndex(x => x.id === pair); if (j >= 0) state.tx.splice(j, 1); }
+        if (mv.type === 'draw' && mv.recurId && !mv.pairId) { /* la quincena sigue activa: se detiene desde Recurrentes */ }
+        save(); closeSheet(); render();
         return toast('Movimiento eliminado');
       }
       case 'home-setup': return openHomeSetup();
@@ -2299,6 +2516,16 @@
       case 'home-expense': openTx(); ui.draft.cat = 'hogar'; ui.draft.home = { paidBy: meMember()?.id }; return redrawTx();
       case 'home-toggle': syncDraft(); ui.draft.home = ui.draft.home ? null : { paidBy: meMember()?.id }; if (ui.draft.home) ui.draft.split = null; return redrawTx();
       case 'hm-add': homeDraftSync(); ui.homeDraft.members.push({ id: uid(), name: '', pct: '', income: '' }); homeRedraw(); setTimeout(() => $$('[data-hmname]').at(-1)?.focus(), 50); return;
+      case 'biz-setup': return openSheet(bizForm());
+      case 'biz-off': {
+        if (!confirm('¿Desactivar tu negocio? Sus movimientos se conservan y vuelven a aparecer si lo activas de nuevo.')) return;
+        state.business = null; state.settings.space = 'personal'; save(); closeSheet(); render(); return toast('Negocio desactivado');
+      }
+      case 'biz-tax': return openSheet(taxSheet());
+      case 'biz-pay': ui.payRecur = false; return openSheet(paySheet());
+      case 'pay-recur': ui.payRecur = !ui.payRecur; t.setAttribute('aria-checked', ui.payRecur); t.querySelector('.switch').setAttribute('aria-checked', ui.payRecur); return;
+      case 'cfdi-toggle': syncDraft(); ui.draft.cfdi = !ui.draft.cfdi; return redrawTx();
+      case 'biz-export': return exportBiz();
       case 'home-share': return openSheet(inviteSheet());
       case 'home-share-go': {
         const b = $('#shareGo'); b.disabled = true; b.textContent = 'Preparando…';
@@ -2329,7 +2556,7 @@
       case 'split-toggle': syncDraft(); ui.draft.split = ui.draft.split ? null : { payer: 'me', other: '', me: 1, people: [{ name: '', shares: 1, on: true }] }; return redrawTx();
       case 'split-add': syncDraft(); ui.draft.split.people.push({ name: '', shares: 1, on: true }); redrawTx(); setTimeout(() => { const ins = $$('[data-splitname]'); ins.at(-1)?.focus(); }, 50); return;
       case 'receipt-del': ui.draft.receipt = null; return redrawTx();
-      case 'reimb-toggle': ui.draft.reimb = ui.draft.reimb ? null : 'pending'; return redrawTx();
+      case 'reimb-toggle': if (ui.draft.space === 'biz') return; ui.draft.reimb = ui.draft.reimb ? null : 'pending'; return redrawTx();
       case 'reimb-done': ui.draft.reimb = ui.draft.reimb === 'done' ? 'pending' : 'done'; return redrawTx();
       case 'tx-del': {
         const i = state.tx.findIndex(x => x.id === ui.draft.id);
@@ -2398,6 +2625,35 @@
   document.addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target;
+    if (f.id === 'bizForm') {
+      const name = f.name.value.trim(), pct = parseAmount(f.pct.value);
+      if (!name) { f.name.focus(); return toast('Escribe el nombre de tu negocio'); }
+      if (pct < 0 || pct > 60) return toast('Usa un porcentaje entre 0 y 60');
+      const isNew = !state.business;
+      state.business = { name, taxPct: pct };
+      state.settings.space = 'biz'; save(); closeSheet();
+      if (location.hash !== '#inicio' && isNew) location.hash = 'inicio'; else render();
+      return toast(isNew ? `Listo. «${name}» ya tiene su espacio.` : 'Negocio actualizado');
+    }
+    if (f.id === 'payForm') {
+      const amount = parseAmount(f.amount.value), date = f.date.value || today(), account = f.account.value;
+      if (!amount) { f.amount.focus(); return toast('Escribe cuánto te vas a pagar'); }
+      const pair = drawPair(amount, date, account);
+      let msg = '';
+      if (ui.payRecur) {
+        const day = +date.slice(8), r = { id: uid(), freq: 'biweekly', day, active: true, template: { type: 'draw', space: 'biz', amount, account, note: 'Sueldo' }, next: addFreq(date, 'biweekly', day) };
+        state.recurring = state.recurring || []; state.recurring.push(r); pair[0].recurId = r.id; msg = ' · cada quincena';
+      }
+      state.tx.push(...pair); save(); closeSheet(); render(); haptic();
+      return toast(`Te pagaste ${money(amount, { compact: true })}${msg}. Ya está en Personal.`);
+    }
+    if (f.id === 'taxForm') {
+      const amount = parseAmount(f.amount.value);
+      if (!amount) { f.amount.focus(); return toast('Escribe cuánto vas a apartar'); }
+      state.tx.push({ id: uid(), type: 'taxset', space: 'biz', amount, date: f.date.value || today(), account: f.account.value, note: 'Impuestos', created: Date.now() });
+      save(); closeSheet(); render(); haptic();
+      return toast(`Apartaste ${money(amount, { compact: true })} para impuestos`);
+    }
     if (f.id === 'joinForm') {
       const inv = parseInvite(f.code.value), err = $('#joinErr'), btn = $('#joinSubmit');
       if (!inv) { err.textContent = 'Ese código no parece una invitación de DOMI. Cópialo completo.'; return; }
@@ -2458,6 +2714,7 @@
       const d = ui.draft, amount = parseAmount(d.amount);
       if (!amount) { f.amount.focus(); return toast('Escribe un monto mayor a cero'); }
       const rec = { id: d.id || uid(), type: d.type, cat: d.cat, sub: cat(d.cat).subs ? (d.sub || null) : null, amount, date: d.date || today(), account: d.account, note: d.note.trim(), receipt: d.type === 'expense' ? d.receipt : null, reimb: d.type === 'expense' ? d.reimb : null, created: d.created || Date.now() };
+      if (d.space === 'biz') { rec.space = 'biz'; rec.reimb = null; if (d.type === 'expense') rec.cfdi = !!d.cfdi; d.home = null; d.split = null; }
       // Gasto dividido: solo tu parte es gasto; lo demás pasa a «Me deben» (o a «Debo» si pagó otra persona)
       let splitMsg = '';
       if (d.type === 'expense' && d.home && home()) {
@@ -2490,7 +2747,7 @@
       state.recurring = state.recurring || [];
       let recurMsg = '';
       const existing = rec.recurId && state.recurring.find(r => r.id === rec.recurId);
-      const template = { type: rec.type, cat: rec.cat, sub: rec.sub, amount: rec.amount, account: rec.account, note: rec.note, ...(rec.home ? { home: rec.home } : {}) };
+      const template = { type: rec.type, cat: rec.cat, sub: rec.sub, amount: rec.amount, account: rec.account, note: rec.note, ...(rec.home ? { home: rec.home } : {}), ...(rec.space ? { space: rec.space, cfdi: rec.cfdi } : {}) };
       const day = +rec.date.slice(8);
       if (d.recur) {
         if (existing && existing.active) Object.assign(existing, { freq: d.recur, template, day });
@@ -2507,8 +2764,9 @@
       haptic();
       closeSheet();
       ui.month = rec.date.slice(0, 7);
+      if (state.business) state.settings.space = rec.space === 'biz' ? 'biz' : 'personal';
       render();
-      if (recurMsg || splitMsg) return toast((i >= 0 ? 'Cambios guardados' : rec.type === 'income' ? 'Ingreso agregado' : 'Gasto agregado') + splitMsg + recurMsg);
+      if (recurMsg || splitMsg) return toast((i >= 0 ? 'Cambios guardados' : rec.space === 'biz' ? (rec.type === 'income' ? 'Venta agregada' : 'Gasto del negocio agregado') : rec.type === 'income' ? 'Ingreso agregado' : 'Gasto agregado') + splitMsg + recurMsg);
       // Alerta de presupuesto
       const b = state.budgets[rec.cat];
       if (rec.type === 'expense' && b) {
@@ -2516,7 +2774,7 @@
         if (s >= b) return toast(`Superaste tu límite de ${cat(rec.cat).name}`);
         if (s >= b * 0.8) return toast(`Llevas ${pctFmt((s / b) * 100)} de tu límite de ${cat(rec.cat).name}`);
       }
-      return toast(i >= 0 ? 'Cambios guardados' : rec.type === 'income' ? 'Ingreso agregado' : 'Gasto agregado');
+      return toast(i >= 0 ? 'Cambios guardados' : rec.space === 'biz' ? (rec.type === 'income' ? 'Venta agregada' : 'Gasto del negocio agregado') : rec.type === 'income' ? 'Ingreso agregado' : 'Gasto agregado');
     }
     if (f.id === 'budgetForm') {
       const amount = parseAmount(f.amount.value);
@@ -2591,7 +2849,7 @@
       const r = state.receivables.find(x => x.id === f.dataset.id), amount = Math.min(parseAmount(f.amount.value), recvPending(r)), date = f.date.value || today();
       if (!amount) { f.amount.focus(); return toast('Escribe cuánto te pagó'); }
       r.paid = Math.round(((r.paid || 0) + amount) * 100) / 100;
-      if (r.kind === 'client') state.tx.push({ id: uid(), type: 'income', cat: 'freelance', amount, account: f.account.value, date, note: `${r.name}${r.concept ? ' · ' + r.concept : ''}`, recvId: r.id, created: Date.now() });
+      if (r.kind === 'client') state.tx.push({ id: uid(), type: 'income', cat: 'freelance', amount, account: f.account.value, date, note: `${r.name}${r.concept ? ' · ' + r.concept : ''}`, recvId: r.id, created: Date.now(), ...(state.business ? { space: 'biz', cat: 'servicios-biz' } : {}) });
       else state.tx.push({ id: uid(), type: 'collect', recvId: r.id, amount, account: f.account.value, date, note: r.name, counted: !!r.fromSplit, created: Date.now() });
       save(); haptic(recvPending(r) <= 0.004 ? [20, 60, 20] : 12); closeSheet(); render();
       const left = recvOpen(r.kind).filter(x => x.name.trim().toLowerCase() === r.name.trim().toLowerCase());
@@ -2709,7 +2967,7 @@
     (state.debts || []).forEach(x => { r['debt:' + x.id] = { kind: 'debt', data: x }; });
     (state.receivables || []).forEach(x => { r['recv:' + x.id] = { kind: 'recv', data: x }; });
     if (state.household) r['meta:home'] = { kind: 'home', data: linked ? { homeId: state.household.homeId, key: state.household.key, owner: state.household.owner || null } : state.household };
-    r['meta:perfil'] = { kind: 'meta', data: { currency: state.settings.currency, name: state.settings.name || '', rules: state.rules || {} } };
+    r['meta:perfil'] = { kind: 'meta', data: { currency: state.settings.currency, name: state.settings.name || '', rules: state.rules || {}, business: state.business || null } };
     return r;
   };
   const applyRecord = (id, kind, data, deleted) => {
@@ -2727,7 +2985,7 @@
       else if (data.homeId) { if (!state.household || state.household.homeId !== data.homeId) { state.tx.forEach(t => { delete t.home; }); state.household = { homeId: data.homeId, key: data.key, owner: data.owner, name: 'Hogar', mode: 'equal', members: [], settles: [] }; } }
       else state.household = data;
     }
-    else if (kind === 'meta' && !deleted) { state.settings.currency = data.currency || state.settings.currency; state.settings.name = data.name || ''; state.rules = data.rules || {}; }
+    else if (kind === 'meta' && !deleted) { state.settings.currency = data.currency || state.settings.currency; state.settings.name = data.name || ''; state.rules = data.rules || {}; if ('business' in data) { state.business = data.business; if (!state.business) state.settings.space = 'personal'; } }
   };
 
   // ---- Subir cambios ----
