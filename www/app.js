@@ -648,6 +648,7 @@
       </section>
       ${debtsHome()}
       ${upcomingCard()}
+      ${simCard()}
 
       <div class="insights">
         <div class="card insight"><div class="eyebrow">Vs. mes anterior</div><strong class="num ${delta !== null && delta <= 0 ? 'pos' : ''}">${delta === null ? '—' : (delta > 0 ? '+' : '') + pctFmt(delta)}</strong><p>${delta === null ? 'Sin datos del mes pasado.' : delta <= 0 ? 'Gastas menos. Bien hecho.' : 'Gastas más que el mes pasado.'}</p></div>
@@ -950,6 +951,7 @@
       const nd = act.filter(d => d.dueDay).map(nextDue).sort()[0];
       const list = [...all].sort((a, b) => (b.balance > 0) - (a.balance > 0) || (b.rate || 0) - (a.rate || 0) || b.balance - a.balance);
       return head + `<div class="summary-row"><div class="card"><div class="eyebrow">Total</div><strong class="num">${kfmt(sum(act, d => d.balance))}</strong></div><div class="card"><div class="eyebrow">Al mes</div><strong class="num">${kfmt(sum(act, d => Math.min(d.payment || 0, d.balance)))}</strong></div><div class="card"><div class="eyebrow">Próximo</div><strong>${nd ? esc(shortDate(nd)) : '—'}</strong></div></div>
+        <button type="button" class="cal-add sim-entry" data-sim="debt">${icon('trend')}<span><b>Simular abonos extra</b><small>¿Cuánto te ahorras si pagas un poco más cada mes?</small></span></button>
         <div class="goals">${list.map(debtCard).join('')}</div>
         ${act.filter(d => d.rate > 0).length > 1 ? '<p class="inv-note">«Prioridad» marca la deuda con la tasa más alta: pagarle de más a esa primero te ahorra más intereses.</p>' : ''}`;
     }
@@ -1073,6 +1075,138 @@
     window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
   };
 
+  // =====================================================================
+  // Simuladores: Deudas · ¿Me alcanza? · Ahorro e inversión
+  // Estimaciones; no son asesoría financiera.
+  // =====================================================================
+  const monthLabel = n => { const d = new Date(); d.setMonth(d.getMonth() + n); return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`; };
+  const yearsMonths = n => { if (n === Infinity) return 'nunca'; const y = Math.floor(n / 12), m = n % 12; return [y ? `${y} ${y === 1 ? 'año' : 'años'}` : '', m ? `${m} ${m === 1 ? 'mes' : 'meses'}` : ''].filter(Boolean).join(' y ') || '0 meses'; };
+  // Simula todas las deudas mes a mes: cada una paga su mínimo y el extra (más lo que se libera al liquidar otras) va a la prioridad
+  const simDebts = (debts, extra, order) => {
+    let ds = debts.map(d => ({ id: d.id, bal: d.balance, r: (d.rate || 0) / 1200, pay: d.payment || 0 })), interest = 0, months = 0;
+    const sorter = order === 'snowball' ? (a, b) => a.bal - b.bal : (a, b) => b.r - a.r || a.bal - b.bal;
+    const series = [sum(ds, d => d.bal)];
+    while (ds.some(d => d.bal > 0.01) && months < 600) {
+      months++;
+      ds.forEach(d => { if (d.bal > 0) { const i = d.bal * d.r; interest += i; d.bal += i; } });
+      let pool = extra;
+      ds.forEach(d => { if (d.bal <= 0) { pool += d.pay; return; } const p = Math.min(d.pay, d.bal); d.bal -= p; pool += d.pay - p; });
+      for (const d of ds.filter(x => x.bal > 0.01).sort(sorter)) { if (pool <= 0) break; const p = Math.min(pool, d.bal); d.bal -= p; pool -= p; }
+      series.push(sum(ds, d => Math.max(d.bal, 0)));
+      if (months > 3 && series.at(-1) >= series.at(-4) - 0.01) return { months: Infinity, interest, series };   // no baja: el pago no cubre intereses
+    }
+    return { months, interest, series };
+  };
+  const spark = (a, b) => {   // dos curvas de saldo: actual (gris) vs. con abono extra (verde)
+    const W = 300, H = 90, n = Math.max(a.length, b.length), max = Math.max(...a, ...b, 1);
+    const path = s => s.map((v, i) => `${i ? 'L' : 'M'}${(i / Math.max(n - 1, 1) * W).toFixed(1)},${(H - 6 - (v / max) * (H - 12)).toFixed(1)}`).join('');
+    return `<svg class="chart sim-spark" viewBox="0 0 ${W} ${H}" aria-hidden="true"><path d="${path(a)}" fill="none" stroke="var(--faint)" stroke-width="2" stroke-dasharray="4 4"/><path d="${path(b)}" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round"/></svg>`;
+  };
+
+  const simState = () => (ui.sim = ui.sim || { tab: 'debt', debt: 'all', extra: 1000, order: 'avalanche', price: '', pay: 'cash', msi: 6, p0: '', monthly: 3000, rate: 10, years: 5, goalMode: 'future', target: '' });
+
+  const simDebtOut = s => {
+    const act = activeDebts().filter(d => d.payment > 0 || s.debt !== 'all');
+    const sel = s.debt === 'all' ? act : act.filter(d => d.id === s.debt);
+    if (!sel.length) return `<div class="cal-empty">Agrega tus deudas con su pago mensual en Deudas → Debo para simular.</div>`;
+    const extra = parseAmount(s.extra) || 0;
+    const base = simDebts(sel, 0, s.order), plus = simDebts(sel, extra, s.order);
+    const other = s.debt === 'all' && sel.length > 1 ? simDebts(sel, extra, s.order === 'avalanche' ? 'snowball' : 'avalanche') : null;
+    const fmtM = r => r.months === Infinity ? 'Nunca' : yearsMonths(r.months);
+    const savedM = base.months === Infinity ? null : base.months - plus.months, savedI = base.interest - plus.interest;
+    return `<div class="sim-compare">
+        <div><span class="eyebrow">Como vas</span><b>${fmtM(base)}</b><small>${base.months === Infinity ? 'El pago no cubre los intereses' : `Terminas en ${monthLabel(base.months)} · intereses ${money(base.interest, { compact: true })}`}</small></div>
+        <div class="win"><span class="eyebrow">Con ${money(extra, { compact: true })} extra al mes</span><b>${fmtM(plus)}</b><small>${plus.months === Infinity ? 'Aún no alcanza' : `Terminas en ${monthLabel(plus.months)} · intereses ${money(plus.interest, { compact: true })}`}</small></div>
+      </div>
+      ${extra && plus.months !== Infinity ? `<p class="sim-verdict ok">${savedM ? `Liquidas <b>${yearsMonths(savedM)} antes</b>` : 'Liquidas en el mismo tiempo'}${savedI > 1 ? ` y te ahorras <b>${money(savedI, { compact: true })}</b> en intereses` : ''}.</p>` : ''}
+      ${spark(base.series.slice(0, 121), plus.series.slice(0, 121))}
+      <div class="sim-legend"><span><i class="ln dash"></i>Como vas</span><span><i class="ln"></i>Con abono extra</span></div>
+      ${other ? `<div class="sim-strat"><span class="eyebrow">Estrategia</span>
+        <div class="seg"><button type="button" data-simset="order:avalanche" aria-pressed="${s.order === 'avalanche'}">Avalancha</button><button type="button" data-simset="order:snowball" aria-pressed="${s.order === 'snowball'}">Bola de nieve</button></div>
+        <p class="inv-note">${s.order === 'avalanche' ? 'Avalancha: el extra va primero a la deuda con la tasa más alta. Es la que menos intereses paga.' : 'Bola de nieve: el extra va primero a la deuda más chica. Liquidas una rápido y te motiva.'} La otra estrategia: ${fmtM(other)} · intereses ${money(other.interest, { compact: true })}.</p></div>` : ''}`;
+  };
+
+  const simAffordOut = s => {
+    const price = parseAmount(s.price);
+    const m = ym(new Date()), end = `${m}-31`, list = inMonth(m), bal = sum(list, signed);
+    const up = upcoming(31).filter(x => x.date <= end), pendOut = sum(up, x => x.amount);
+    const recIn = (state.recurring || []).filter(r => r.active && r.template.type === 'income');
+    let pendIn = 0; recIn.forEach(r => { let d = r.next, g = 0; while (d <= end && g++ < 6) { pendIn += r.template.amount; d = addFreq(d, r.freq, r.day); } });
+    const nowMonth = s.pay === 'msi' ? price / (+s.msi || 1) : price;
+    const left = bal + pendIn - pendOut - nowMonth;
+    const monthlyInc = sum(inMonth(shiftYM(m, -1)).filter(t => t.type === 'income'), t => t.amount) || sum(list.filter(t => t.type === 'income'), t => t.amount);
+    const cushion = Math.max(1000, monthlyInc * 0.1);
+    const verdict = !price ? '' : left < 0 ? ['bad', `Te faltarían <b>${money(-left, { compact: true })}</b> para cerrar el mes.`] : left < cushion ? ['warn', `Te alcanza justo: quedarías con <b>${money(left, { compact: true })}</b>. Poco margen para imprevistos.`] : ['ok', `Sí te alcanza: cierras el mes con <b>${money(left, { compact: true })}</b>.`];
+    return `<div class="sim-rows">
+        <div><span>Tu balance hoy</span><b class="num">${money(bal, { compact: true })}</b></div>
+        <div><span>Ingresos que faltan este mes</span><b class="num pos">+${money(pendIn, { compact: true })}</b></div>
+        <div><span>Pagos que faltan (recurrentes y deudas)</span><b class="num">−${money(pendOut, { compact: true })}</b></div>
+        ${price ? `<div><span>${s.pay === 'msi' ? `Primera mensualidad (${s.msi} MSI)` : 'La compra'}</span><b class="num">−${money(nowMonth, { compact: true })}</b></div>` : ''}
+        <div class="total"><span>Quedarías a fin de mes</span><b class="num">${money(left, { compact: true })}</b></div>
+      </div>
+      ${verdict ? `<p class="sim-verdict ${verdict[0]}">${verdict[1]}</p>` : '<p class="inv-note">Escribe el precio para ver cómo quedarías.</p>'}
+      ${price && s.pay === 'msi' && monthlyInc ? `<p class="inv-note">Comprometes ${money(nowMonth, { compact: true })} al mes durante ${s.msi} meses: ${pctFmt((nowMonth / monthlyInc) * 100)} de tu ingreso mensual.</p>` : ''}`;
+  };
+
+  const simSaveOut = s => {
+    const P = parseAmount(s.p0) || 0, A = parseAmount(s.monthly) || 0, r = (parseAmount(s.rate) || 0) / 1200, n = Math.round((+s.years || 1) * 12);
+    const g = Math.pow(1 + r, n), fv = r ? P * g + A * (g - 1) / r : P + A * n;
+    const series = Array.from({ length: (+s.years || 1) + 1 }, (_, y) => { const k = y * 12, gg = Math.pow(1 + r, k); return r ? P * gg + A * (gg - 1) / r : P + A * k; });
+    const contrib = P + A * n;
+    if (s.goalMode === 'need') {
+      const M = parseAmount(s.target) || 0;
+      const need = M <= P * g ? 0 : r ? (M - P * g) * r / (g - 1) : (M - P) / n;
+      return `<div class="sim-big"><span class="eyebrow">Necesitas ahorrar al mes</span><b class="num">${M ? money(need, { compact: true }) : '—'}</b><small>${M ? `para juntar ${money(M, { compact: true })} en ${yearsMonths(n)}${r ? ` con ${s.rate}% anual` : ''}` : 'Escribe cuánto quieres juntar'}</small></div>
+        ${M && r ? `<p class="inv-note">Sin rendimiento necesitarías ${money(Math.max(0, (M - P) / n), { compact: true })} al mes: el interés compuesto te ahorra ${money(Math.max(0, (M - P) / n - need) * n, { compact: true })}.</p>` : ''}`;
+    }
+    const max = Math.max(...series, 1);
+    return `<div class="sim-big"><span class="eyebrow">En ${yearsMonths(n)} tendrías</span><b class="num pos">${money(fv, { compact: true })}</b><small>Aportaste ${money(contrib, { compact: true })} · rendimientos ${money(fv - contrib, { compact: true })}</small></div>
+      <div class="sim-bars">${series.slice(1).map((v, i) => `<div><i style="height:${Math.max(4, (v / max) * 100)}%"></i><span>${i + 1}</span></div>`).join('')}</div>
+      <p class="inv-note" style="text-align:center">Años</p>`;
+  };
+
+  const simSheet = () => {
+    const s = simState(), tab = s.tab;
+    const tabs = `<div class="seg seg3" role="tablist"><button type="button" data-simset="tab:debt" aria-pressed="${tab === 'debt'}">Deudas</button><button type="button" data-simset="tab:afford" aria-pressed="${tab === 'afford'}">¿Me alcanza?</button><button type="button" data-simset="tab:save" aria-pressed="${tab === 'save'}">Ahorro</button></div>`;
+    let body = '';
+    if (tab === 'debt') {
+      const act = activeDebts();
+      body = `${act.length > 1 ? `<label><span class="field-label">¿Qué deuda?</span><select class="input" data-simfield="debt"><option value="all" ${s.debt === 'all' ? 'selected' : ''}>Todas mis deudas</option>${act.map(d => `<option value="${d.id}" ${s.debt === d.id ? 'selected' : ''}>${esc(d.name)} · ${money(d.balance, { compact: true })}</option>`).join('')}</select></label>` : ''}
+        <span class="field-label">¿Cuánto extra puedes abonar al mes?</span>
+        <div class="sim-input"><span>${esc(curSymbol())}</span><input data-simfield="extra" inputmode="decimal" value="${esc(String(s.extra))}"></div>
+        <div class="sub-chips">${[500, 1000, 2000, 5000].map(v => `<button type="button" class="sub-chip" data-simset="extra:${v}" aria-pressed="${+s.extra === v}">+${money(v, { compact: true })}</button>`).join('')}</div>`;
+    } else if (tab === 'afford') {
+      body = `<span class="field-label">¿Cuánto cuesta?</span>
+        <div class="sim-input"><span>${esc(curSymbol())}</span><input data-simfield="price" inputmode="decimal" placeholder="0" value="${esc(String(s.price))}"></div>
+        <div class="seg" role="group"><button type="button" data-simset="pay:cash" aria-pressed="${s.pay === 'cash'}">De contado</button><button type="button" data-simset="pay:msi" aria-pressed="${s.pay === 'msi'}">A meses sin intereses</button></div>
+        ${s.pay === 'msi' ? `<div class="sub-chips" style="margin-top:10px">${[3, 6, 9, 12, 18].map(v => `<button type="button" class="sub-chip" data-simset="msi:${v}" aria-pressed="${+s.msi === v}">${v} meses</button>`).join('')}</div>` : ''}`;
+    } else {
+      const saved = goalsSaved() + invStats().value;
+      body = `<div class="seg" role="group"><button type="button" data-simset="goalMode:future" aria-pressed="${s.goalMode === 'future'}">¿Cuánto tendré?</button><button type="button" data-simset="goalMode:need" aria-pressed="${s.goalMode === 'need'}">¿Cuánto ahorrar?</button></div>
+        ${s.goalMode === 'need' ? `<span class="field-label">Quiero juntar</span><div class="sim-input"><span>${esc(curSymbol())}</span><input data-simfield="target" inputmode="decimal" placeholder="Ej. 100000" value="${esc(String(s.target))}"></div>
+          ${state.goals.filter(g => g.saved < g.target).length ? `<div class="sub-chips">${state.goals.filter(g => g.saved < g.target).map(g => `<button type="button" class="sub-chip" data-simgoal="${g.id}">${esc(g.name)}</button>`).join('')}</div>` : ''}` : ''}
+        <div class="row2">
+          <label><span class="field-label">Ya tengo</span><div class="sim-input sm"><span>${esc(curSymbol())}</span><input data-simfield="p0" inputmode="decimal" placeholder="${saved ? Math.round(saved) : '0'}" value="${esc(String(s.p0))}"></div></label>
+          ${s.goalMode === 'need' ? '<div></div>' : `<label><span class="field-label">Ahorro al mes</span><div class="sim-input sm"><span>${esc(curSymbol())}</span><input data-simfield="monthly" inputmode="decimal" value="${esc(String(s.monthly))}"></div></label>`}
+        </div>
+        <span class="field-label">Rendimiento anual</span>
+        <div class="sub-chips">${[[0, 'Sin rendimiento'], [5, '5%'], [8, '8%'], [10, '10%'], [12, '12%']].map(([v, l]) => `<button type="button" class="sub-chip" data-simset="rate:${v}" aria-pressed="${+s.rate === v}">${l}</button>`).join('')}</div>
+        <span class="field-label">Plazo: <b>${s.years} ${+s.years === 1 ? 'año' : 'años'}</b></span>
+        <input type="range" class="sim-range" min="1" max="30" step="1" value="${s.years}" data-simfield="years" aria-label="Plazo en años">`;
+    }
+    const out = tab === 'debt' ? simDebtOut(s) : tab === 'afford' ? simAffordOut(s) : simSaveOut(s);
+    return `${sheetHead('Simulador')}${tabs}<div class="sim-body">${body}</div><div class="sim-out" id="simOut">${out}</div>
+      <p class="inv-note sim-disc">Estimación con tus datos de DOMI. No es asesoría financiera.</p>`;
+  };
+  const refreshSim = () => { const s = simState(), o = $('#simOut'); if (!o) return; o.innerHTML = s.tab === 'debt' ? simDebtOut(s) : s.tab === 'afford' ? simAffordOut(s) : simSaveOut(s); };
+  const openSim = tab => { simState().tab = tab || simState().tab; openSheet(simSheet()); };
+  const simCard = () => `<section class="card c-sim"><div class="card-head"><h2 class="h2">Simula antes de decidir</h2></div>
+    <div class="sim-tiles">
+      <button type="button" data-sim="debt">${icon('card')}<b>Deudas</b><small>¿Y si abono más?</small></button>
+      <button type="button" data-sim="afford">${icon('bag')}<b>¿Me alcanza?</b><small>Antes de comprar</small></button>
+      <button type="button" data-sim="save">${icon('trend')}<b>Ahorro</b><small>¿Cuánto tendré?</small></button>
+    </div></section>`;
+
   const viewPatrimonio = () => {
     const st = invStats(), saved = goalsSaved(), total = saved + st.value;
     const { int, cents } = moneySplit(total);
@@ -1096,7 +1230,8 @@
       <button type="button" role="tab" data-pat="metas" aria-pressed="${tab === 'metas'}" aria-selected="${tab === 'metas'}">Metas</button>
       <button type="button" role="tab" data-pat="inversiones" aria-pressed="${tab === 'inversiones'}" aria-selected="${tab === 'inversiones'}">Inversiones</button>
     </div>
-    ${tab === 'metas' ? goalsBlock() : investBlock()}`;
+    ${tab === 'metas' ? goalsBlock() : investBlock()}
+    <button type="button" class="cal-add sim-entry" data-sim="save" style="margin-top:14px">${icon('trend')}<span><b>Simular ahorro e inversión</b><small>¿Cuánto tendré? ¿Cuánto debo ahorrar al mes?</small></span></button>`;
   };
 
   const viewAjustes = () => {
@@ -1726,7 +1861,7 @@
     ];
     state.tx.push({ id: uid(), type: 'income', cat: 'freelance', amount: 8500, account: 'Transferencia', date: rel(-2), note: 'Agencia Lumen · Campaña de lanzamiento', recvId: lumen.id, created: Date.now() });
     const mkRec = (note, cat0, sub, amount, day, freq = 'monthly', type = 'expense') => {
-      let next = iso(new Date(now.getFullYear(), now.getMonth(), day, 12)); if (next <= today()) next = addFreq(next, freq, day);
+      let next = iso(new Date(now.getFullYear(), now.getMonth(), day, 12)); while (next <= today()) next = addFreq(next, freq, day);
       return { id: uid(), freq, day, active: true, next, template: { type, cat: cat0, sub, amount, account: 'Débito', note } };
     };
     state.recurring = [
@@ -1750,7 +1885,7 @@
   window.addEventListener('scroll', () => $('#topbar').classList.toggle('scrolled', scrollY > 4), { passive: true });
 
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-action],[data-dtab],[data-mtab],[data-debt],[data-debttype],[data-debtop],[data-recv],[data-recvkind],[data-collect],[data-remind],[data-ics-debt],[data-ics-rec],[data-splitpayer],[data-splitp],[data-splitinc],[data-splitdec],[data-syncmode],[data-freq],[data-recstop],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
+    const t = e.target.closest('[data-action],[data-sim],[data-simset],[data-simgoal],[data-dtab],[data-mtab],[data-debt],[data-debttype],[data-debtop],[data-recv],[data-recvkind],[data-collect],[data-remind],[data-ics-debt],[data-ics-rec],[data-splitpayer],[data-splitp],[data-splitinc],[data-splitdec],[data-syncmode],[data-freq],[data-recstop],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
     if (!t) return;
     const a = t.dataset.action;
 
@@ -1777,6 +1912,10 @@
     if (t.dataset.op) { $$('[data-op]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
     // Patrimonio
     if (t.dataset.pat) { ui.pat = t.dataset.pat; return render(); }
+    // Simuladores
+    if (t.dataset.sim) return openSim(t.dataset.sim);
+    if (t.dataset.simset) { const [k, v] = t.dataset.simset.split(':'); simState()[k] = v; const b = $('#sheetBody'), st = b.scrollTop; openSheet(simSheet()); b.scrollTop = st; return; }
+    if (t.dataset.simgoal) { const g = state.goals.find(x => x.id === t.dataset.simgoal); const s0 = simState(); s0.target = g.target; s0.p0 = g.saved; if (g.deadline) s0.years = Math.max(1, Math.round(monthsUntil(g.deadline) / 12)); openSheet(simSheet()); return; }
     // Deudas y cobros
     if (t.dataset.dtab) { ui.dtab = t.dataset.dtab; if (t.tagName === 'A') return; return render(); }
     if (t.dataset.mtab) { ui.mtab = t.dataset.mtab; return render(); }
@@ -1930,6 +2069,7 @@
   const fitAmount = el => { el.style.width = Math.max(1, (el.value || el.placeholder).length) + 0.6 + 'ch'; };
   new MutationObserver(() => $$('.amount-field input').forEach(fitAmount)).observe($('#sheetBody'), { childList: true });
   document.addEventListener('input', e => {
+    if (e.target.matches('[data-simfield]')) { simState()[e.target.dataset.simfield] = e.target.value; if (e.target.dataset.simfield === 'years') { const l = e.target.previousElementSibling; if (l) l.innerHTML = 'Plazo: <b>' + e.target.value + (e.target.value === '1' ? ' año' : ' años') + '</b>'; } refreshSim(); }
     if (e.target.matches('.amount-field input')) fitAmount(e.target);
     if (ui.draft && ui.draft.split && (e.target.matches('#txForm [name=amount]') || e.target.matches('[data-splitname]') || e.target.name === 'splitOther')) refreshSplit();
     if (e.target.id === 'q') { ui.q = e.target.value; ui._focusQ = true; render(); }

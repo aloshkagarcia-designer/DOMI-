@@ -41,6 +41,7 @@ La página detecta el dispositivo y ofrece la descarga correcta.
 - **Importar estado de cuenta (CSV)**: lee el archivo de cualquier banco, detecta columnas, fechas y montos, categoriza solo (CFE, Telcel, Netflix, Uber, OXXO…), aprende tus correcciones, marca duplicados y excluye pagos a tarjeta.
 - **Deudas y cobros**: en Inicio ves cuánto debes y cuánto te deben, con alertas de facturas vencidas y del próximo pago. Pestaña Deudas con **Debo** (tarjetas, préstamos, auto, MSI, personas: saldo, tasa, meses para liquidar y prioridad) y **Me deben** (clientes con folio y fecha límite; personas). Abonos y cobros no inflan tus gastos; el cobro a un cliente sí cuenta como ingreso.
 - **Dividir gastos**: elige entre quiénes y cuántas partes; solo tu parte es gasto y el resto pasa a «Me deben» (o a «Debo» si pagó otra persona).
+- **Simuladores**: Deudas (¿y si abono más?, avalancha vs. bola de nieve), ¿Me alcanza? (compra de contado o a MSI contra tu fin de mes) y Ahorro (¿cuánto tendré?, ¿cuánto debo ahorrar al mes para una meta?).
 - **Pagos recurrentes**: «Se repite» (semanal, quincenal, mensual, bimestral, anual); DOMI los registra solos y los muestra en «Próximos pagos».
 - **Recordatorios en tu calendario**: agrega tus pagos al calendario del teléfono con aviso a las 9:00 am del día anterior.
 - **Categorías**: incluye Gasolina, Cuidado personal, Mascotas y Educación (Personal / Hijos).
