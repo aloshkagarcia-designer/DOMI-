@@ -44,3 +44,9 @@ create policy "domi: solo mi llave" on public.domi_keys
 do $$ begin
   alter publication supabase_realtime add table public.domi_records;
 exception when duplicate_object then null; end $$;
+
+-- Permisos: los usuarios con sesión iniciada pueden usar las tablas
+-- (las filas siguen protegidas por las reglas de arriba: cada quien solo ve lo suyo)
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.domi_records to authenticated;
+grant select, insert, update, delete on public.domi_keys    to authenticated;
