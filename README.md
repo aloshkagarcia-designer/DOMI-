@@ -41,7 +41,7 @@ La página detecta el dispositivo y ofrece la descarga correcta.
 - **Importar estado de cuenta (CSV)**: lee el archivo de cualquier banco, detecta columnas, fechas y montos, categoriza solo (CFE, Telcel, Netflix, Uber, OXXO…), aprende tus correcciones, marca duplicados y excluye pagos a tarjeta.
 - **Deudas y cobros**: en Inicio ves cuánto debes y cuánto te deben, con alertas de facturas vencidas y del próximo pago. Pestaña Deudas con **Debo** (tarjetas, préstamos, auto, MSI, personas: saldo, tasa, meses para liquidar y prioridad) y **Me deben** (clientes con folio y fecha límite; personas). Abonos y cobros no inflan tus gastos; el cobro a un cliente sí cuenta como ingreso.
 - **Dividir gastos**: elige entre quiénes y cuántas partes; solo tu parte es gasto y el resto pasa a «Me deben» (o a «Debo» si pagó otra persona).
-- **Hogar compartido**: agrega a quienes viven contigo (sin límite) y cómo se reparten: partes iguales, por porcentaje o según lo que gana cada quien. Al registrar un «Gasto del hogar» eliges quién pagó y solo tu parte cuenta como tu gasto. La pantalla Hogar muestra cuánto aportó cada quien, quién le debe a quién para quedar parejos (con botón Saldar) y quién aporta qué por categoría.
+- **Hogar compartido**: agrega a quienes viven contigo (sin límite) y cómo se reparten: partes iguales, por porcentaje o según lo que gana cada quien. Al registrar un «Gasto del hogar» eliges quién pagó y solo tu parte cuenta como tu gasto. La pantalla Hogar muestra cuánto aportó cada quien, quién le debe a quién para quedar parejos (con botón Saldar) y quién aporta qué por categoría. **Compartido entre cuentas**: invita por WhatsApp a quienes viven contigo; cada quien entra con su propia cuenta DOMI y elige quién es. Los gastos del hogar aparecen en el celular de todos en segundos, cifrados con una llave propia del hogar que solo viaja en la invitación. Lo personal de cada quien sigue siendo privado.
 - **Simuladores**: Deudas (¿y si abono más?, avalancha vs. bola de nieve), ¿Me alcanza? (compra de contado o a MSI contra tu fin de mes) y Ahorro (¿cuánto tendré?, ¿cuánto debo ahorrar al mes para una meta?).
 - **Pagos recurrentes**: «Se repite» (semanal, quincenal, mensual, bimestral, anual); DOMI los registra solos y los muestra en «Próximos pagos».
 - **Recordatorios en tu calendario**: agrega tus pagos al calendario del teléfono con aviso a las 9:00 am del día anterior.
@@ -52,6 +52,11 @@ La página detecta el dispositivo y ofrece la descarga correcta.
 - **Ajustes**: moneda, modo claro/oscuro, reporte CSV, respaldo e importación.
 - **Sincronización entre dispositivos** (opcional): con una cuenta DOMI, lo que registras en el celular aparece en la computadora en segundos. Cifrado de extremo a extremo con tu contraseña: el servidor (Supabase) solo guarda datos ilegibles.
 - **Privada**: sin cuenta, los datos viven solo en el dispositivo. Funciona sin conexión.
+
+## Servidor de sincronización (Supabase)
+En Supabase → SQL Editor, ejecuta una vez cada archivo:
+1. `supabase/schema.sql`: sincronización entre tus dispositivos.
+2. `supabase/hogar.sql`: hogar compartido entre cuentas.
 
 ## Estructura
 | Carpeta | Contenido |

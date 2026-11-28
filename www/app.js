@@ -59,6 +59,8 @@
     food: 'M7 3v8M4.5 3v4.5a2.5 2.5 0 0 0 5 0V3M7 11v10M17.5 3C15.5 3 14 5 14 8.5s1.5 4.5 3.5 4.5V21',
     car: 'M5 17h14M6 17l1.6-6.5h8.8L18 17M5 17v3h2.5v-3M16.5 17v3H19v-3M3 11h2.5M18.5 11H21',
     house: 'M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6',
+    copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
+    chev: 'm9 18 6-6-6-6',
     bag: 'M5 8h14l-1 13H6zM9 8V6a3 3 0 0 1 6 0v2',
     pulse: 'M3 12h4l2.5-5 4 10 2.5-5H21',
     ticket: 'M3 7h18v3.5a1.5 1.5 0 0 0 0 3V17H3v-3.5a1.5 1.5 0 0 0 0-3zM14 7v10',
@@ -1280,7 +1282,8 @@
   const viewHogar = () => {
     const h = home();
     const head = `<div class="page-head"><div><div class="eyebrow">Gastos compartidos</div><h1 class="h1">${esc(h?.name || 'Hogar')}<span>.</span></h1></div>${h ? `<button class="btn green sm" data-action="home-expense">${icon('plus', 2.2)}Gasto del hogar</button>` : ''}</div>`;
-    if (!h) return head + `<div class="card empty"><div class="glyph">${icon('house')}</div><h3>Configura tu hogar</h3><p>Agrega a las personas con las que vives y cómo se reparten los gastos. DOMI te dice quién aporta qué y quién le debe a quién.</p><div class="actions"><button class="btn green" data-action="home-setup">${icon('plus', 2.2)}Configurar hogar</button></div></div>`;
+    if (!h) return head + `<div class="card empty"><div class="glyph">${icon('house')}</div><h3>Configura tu hogar</h3><p>Agrega a las personas con las que vives y cómo se reparten los gastos. DOMI te dice quién aporta qué y quién le debe a quién.</p><div class="actions"><button class="btn green" data-action="home-setup">${icon('plus', 2.2)}Configurar hogar</button><button class="btn" data-action="home-join">Tengo una invitación</button></div></div>`;
+    if (homeLinked() && !h.members.length) return head + `<div class="card empty"><div class="glyph">${icon('refresh')}</div><h3>Conectando con «${esc(h.name)}»…</h3><p>Descargando los datos del hogar.</p></div>`;
     const b = homeBalance(ui.month), sh = homeShares(), me = meMember();
     const modeTxt = { equal: 'Partes iguales', percent: 'Por porcentaje', income: 'Según ingresos' }[h.mode || 'equal'];
     // Quién aporta qué, por categoría
@@ -1288,8 +1291,10 @@
     b.list.forEach(t => { const k = (subOf(t) || cat(t.cat)).name; byCatHome[k] = byCatHome[k] || { total: 0, by: {} }; byCatHome[k].total += t.home.total; byCatHome[k].by[t.home.paidBy] = (byCatHome[k].by[t.home.paidBy] || 0) + t.home.total; });
     const catRows = Object.entries(byCatHome).sort((a, c) => c[1].total - a[1].total);
     return head + `
+    ${homeLinked() && !me ? `<div class="alert-row blue" style="margin:0 0 12px">${icon('person')}<span><b>¿Quién eres en este hogar?</b><small>Para calcular tu parte de cada gasto</small></span><button class="btn sm" data-action="home-who">Elegir</button></div>` : ''}
     <section class="card hm-members"><div class="card-head"><h2 class="h2">Quiénes viven aquí</h2><button class="link" data-action="home-setup">Editar</button></div>
-      <ul class="hm-list">${h.members.map(m => `<li>${avatar(m)}<span class="hm-name">${esc(m.name)}${m.me ? ' <small>(tú)</small>' : ''}</span><span class="hm-pct num">${pctFmt(sh[m.id] * 100)}</span></li>`).join('')}</ul>
+      <ul class="hm-list">${h.members.map(m => `<li>${avatar(m)}<span class="hm-name">${esc(m.name)}${m.me ? ' <small>(tú)</small>' : ''}${homeLinked() ? `<em class="hm-tag ${m.uid ? 'on' : ''}">${m.uid ? 'En DOMI' : 'Sin unirse'}</em>` : ''}</span><span class="hm-pct num">${pctFmt(sh[m.id] * 100)}</span></li>`).join('')}</ul>
+      ${shareRow()}
       <p class="inv-note">${modeTxt}${h.mode === 'income' ? ': cada quien aporta en proporción a lo que gana' : h.mode === 'percent' ? ': cada quien aporta el porcentaje acordado' : ': todos aportan lo mismo'}.</p></section>
     <div class="grid two-col" style="margin-top:12px">
       <section class="card"><div class="card-head"><h2 class="h2">Balance del mes</h2><span class="eyebrow">${esc(monthName(ui.month))}</span></div>
@@ -1319,13 +1324,13 @@
       <div class="split">${h.members.map((m, k) => `<div class="split-row hm-edit">${avatar({ id: m.id, name: m.name || '?' }, 'sm')}
         <input class="split-name" data-hmname="${k}" maxlength="24" placeholder="${m.me ? 'Tu nombre' : 'Nombre'}" value="${esc(m.name)}">
         ${h.mode === 'percent' ? `<span class="hm-in"><input data-hmpct="${k}" inputmode="decimal" value="${m.pct ?? ''}" placeholder="0"><em>%</em></span>` : h.mode === 'income' ? `<span class="hm-in wide"><em>${esc(curSymbol())}</em><input data-hminc="${k}" inputmode="decimal" value="${m.income ?? ''}" placeholder="Ingreso"></span>` : `<span class="pt"><b>${pctFmt(sh[k] * 100)}</b></span>`}
-        ${m.me ? '<span class="hm-you">Tú</span>' : `<button type="button" class="icon-btn" data-hmdel="${k}" aria-label="Quitar">${icon('x')}</button>`}</div>`).join('')}
+        ${m.me ? '<span class="hm-you">Tú</span>' : m.uid && home()?.owner !== sync?.userId ? '<span class="hm-you" style="color:var(--muted)">DOMI</span>' : `<button type="button" class="icon-btn" data-hmdel="${k}" aria-label="Quitar">${icon('x')}</button>`}</div>`).join('')}
         <button type="button" class="add-person" data-action="hm-add">${icon('plus', 2.2)}Agregar persona</button>
       </div>
       <span class="field-label">¿Cómo se reparten los gastos?</span>
       <div class="seg seg3" role="group"><button type="button" data-hmmode="equal" aria-pressed="${h.mode === 'equal'}">Iguales</button><button type="button" data-hmmode="percent" aria-pressed="${h.mode === 'percent'}">Porcentaje</button><button type="button" data-hmmode="income" aria-pressed="${h.mode === 'income'}">Según ingresos</button></div>
-      <p class="inv-note">${h.mode === 'percent' ? (Math.abs(pctSum - 100) < 0.5 ? 'Suma 100%. ✓' : `Los porcentajes suman ${pctSum}%: deben sumar 100%.`) : h.mode === 'income' ? 'Escribe cuánto gana al mes cada quien; el que gana más aporta más. Solo se guarda en tu dispositivo.' : 'Todos aportan lo mismo.'}</p>
-      <div class="sheet-actions">${home() ? `<button type="button" class="btn danger" data-action="home-del" style="flex:0 0 auto;width:52px;padding:0" aria-label="Eliminar hogar">${icon('trash')}</button>` : ''}<button class="btn primary">${home() ? 'Guardar cambios' : 'Crear hogar'}</button></div>
+      <p class="inv-note">${h.mode === 'percent' ? (Math.abs(pctSum - 100) < 0.5 ? 'Suma 100%. ✓' : `Los porcentajes suman ${pctSum}%: deben sumar 100%.`) : h.mode === 'income' ? `Escribe cuánto gana al mes cada quien; el que gana más aporta más. ${homeLinked() ? 'Lo verán las personas del hogar.' : 'Solo se guarda en tu dispositivo.'}` : 'Todos aportan lo mismo.'}</p>
+      <div class="sheet-actions">${home() ? `<button type="button" class="btn danger" data-action="home-del" style="flex:0 0 auto;width:52px;padding:0" aria-label="${homeLinked() && home().owner !== sync?.userId ? 'Salir del hogar' : 'Eliminar hogar'}">${icon('trash')}</button>` : ''}<button class="btn primary">${home() ? 'Guardar cambios' : 'Crear hogar'}</button></div>
     </form>`;
   };
   const homeDraftSync = () => {
@@ -1355,6 +1360,59 @@
       <div class="toggle-row note-row"><span><b>No es gasto ni ingreso</b><small>Solo emparejan lo que cada quien puso. Tus gastos del hogar ya cuentan solo tu parte.</small></span></div>
       <div class="sheet-actions"><button class="btn green">Marcar como saldado</button></div>
     </form>`;
+  };
+
+
+  // ---- Compartir el hogar entre cuentas: invitar, unirse, ¿quién eres? ----
+  const homeErr = e => {
+    const m = String((e && e.message) || e || '');
+    if (/domi_home|does not exist|schema cache|PGRST2/i.test(m)) return 'Falta activar «Hogar compartido» en el servidor (supabase/hogar.sql).';
+    return errMsg(e);
+  };
+  const inviteText = () => `Te invito a «${home().name}» en DOMI para llevar juntos los gastos de la casa. Cada quien usa su propia cuenta y sus gastos personales siguen siendo privados.\n\n1. Abre este link: ${inviteLink()}\n2. Entra o crea tu cuenta DOMI y elige quién eres.\n\nSi usas la app de escritorio o Android, ve a Hogar → «Tengo una invitación» y pega este código:\n${inviteCode()}`;
+  const inviteSheet = () => {
+    const h = home();
+    if (!sync) return `${sheetHead('Compartir el hogar')}
+      <div class="share-hero">${icon('users')}<h3>Que cada quien lo vea en su celular</h3><p>Para compartir, primero crea tu cuenta DOMI (o entra con la que ya tienes). Cada persona usa su propia cuenta: sus gastos personales siguen siendo privados y solo se comparte lo marcado como «Gasto del hogar».</p></div>
+      <div class="sheet-actions"><button class="btn green" data-action="sync-signup">Crear cuenta</button><button class="btn" data-action="sync-login">Iniciar sesión</button></div>`;
+    if (!homeLinked()) return `${sheetHead('Compartir el hogar')}
+      <div class="share-hero">${icon('users')}<h3>Lleven las cuentas de «${esc(h.name)}» juntos</h3><p>Cuando alguien registre un gasto del hogar, aparece en el celular de los demás en segundos.</p></div>
+      <ol class="share-steps"><li><b>Tú mandas una invitación</b><span>Por WhatsApp o copiando el código.</span></li><li><b>Cada quien entra con su cuenta DOMI</b><span>Y elige quién es: ${h.members.filter(m => !m.me).map(m => esc(m.name)).join(', ') || 'su nombre'}.</span></li><li><b>Solo se comparte lo del hogar</b><span>Lo personal de cada quien sigue siendo privado. Todo viaja cifrado.</span></li></ol>
+      <p class="sync-err" id="shareErr" role="alert"></p>
+      <div class="sheet-actions"><button class="btn green" id="shareGo" data-action="home-share-go">Compartir «${esc(h.name)}»</button></div>`;
+    return `${sheetHead('Invitar al hogar')}
+      <p class="lede" style="margin:-6px 0 4px">Manda la invitación a quienes viven contigo. Cada quien entra con su cuenta DOMI y elige quién es.</p>
+      <ul class="hm-list">${h.members.map(m => `<li>${avatar(m)}<span class="hm-name">${esc(m.name)}${m.me ? ' <small>(tú)</small>' : ''}</span>${m.uid ? `<span class="hm-st on">${icon('check', 2.4)}En DOMI</span>` : '<span class="hm-st">Pendiente</span>'}</li>`).join('')}</ul>
+      <div class="invite-code"><small>Código de invitación</small><code>${esc(inviteCode())}</code></div>
+      <div class="sheet-actions"><button class="btn" data-action="home-invite-copy">${icon('copy')}Copiar</button><button class="btn green" data-action="home-invite-send">Enviar invitación</button></div>
+      <p class="inv-note" style="text-align:center">Quien tenga este código puede unirse. Compártelo solo con tu familia.</p>`;
+  };
+  const joinSheet = (code = '') => {
+    if (!sync) return `${sheetHead('Unirme a un hogar')}
+      <div class="share-hero">${icon('house')}<h3>Te invitaron a un hogar</h3><p>Para unirte, entra con tu cuenta DOMI o créala (es gratis). Tus gastos personales siguen siendo privados: solo verás los gastos de la casa.</p></div>
+      <div class="sheet-actions"><button class="btn green" data-action="sync-signup">Crear cuenta</button><button class="btn" data-action="sync-login">Iniciar sesión</button></div>`;
+    const cur = home();
+    return `${sheetHead('Unirme a un hogar')}
+    <form id="joinForm" autocomplete="off">
+      <label><span class="field-label">Código de invitación</span><textarea class="input code-in" name="code" rows="3" required spellcheck="false" autocapitalize="off" placeholder="Pega aquí el código que te mandaron">${esc(code)}</textarea></label>
+      ${cur && cur.homeId !== (parseInvite(code) || {}).homeId ? `<div class="toggle-row note-row warn-row"><span><b>Reemplaza «${esc(cur.name)}»</b><small>${homeLinked() ? 'Saldrás de tu hogar actual.' : 'Tu hogar actual solo existe en este dispositivo.'} Tus gastos se conservan con tu parte.</small></span></div>` : ''}
+      <p class="sync-err" id="joinErr" role="alert"></p>
+      <div class="sheet-actions"><button class="btn green" id="joinSubmit">Unirme al hogar</button></div>
+    </form>`;
+  };
+  const whoSheet = () => {
+    const h = home(), free = h.members.filter(m => !m.uid);
+    return `${sheetHead(`¿Quién eres en «${esc(h.name)}»?`)}
+      <p class="lede" style="margin:-6px 0 6px">Así DOMI sabe qué parte de cada gasto te toca.</p>
+      ${free.length ? `<div class="who-list">${free.map(m => `<button type="button" class="who-btn" data-homeiam="${m.id}">${avatar(m)}<span>${esc(m.name)}</span>${icon('chev', 2.2)}</button>`).join('')}</div>` : ''}
+      <form id="whoForm" autocomplete="off"><span class="field-label">${free.length ? '¿No estás en la lista?' : 'Escribe tu nombre'}</span>
+        <div class="who-new"><input class="input" name="newname" maxlength="24" required placeholder="Tu nombre" value="${esc(state.settings.name || '')}"><button class="btn">Agregarme</button></div></form>`;
+  };
+  const shareRow = () => {
+    const h = home();
+    if (!homeLinked()) return `<button class="cal-add" data-action="home-share">${icon('users')}<span><b>Compartir con quienes viven aquí</b><small>Cada quien lo ve en su celular y registra sus gastos</small></span></button>`;
+    const n = h.members.filter(m => m.uid).length;
+    return `<div class="share-row">${icon('users')}<span><b>Compartido</b><small>${n} de ${h.members.length} ${h.members.length === 1 ? 'persona' : 'personas'} en DOMI · cifrado</small></span><button class="btn sm" data-action="home-share">Invitar</button></div>`;
   };
 
   const viewPatrimonio = () => {
@@ -2056,6 +2114,7 @@
   // ---------- Eventos ----------
   const route = () => {
     const v = location.hash.slice(1);
+    if (v.startsWith('unir=')) { const code = decodeURIComponent(v.slice(5)); try { localStorage.setItem(JOIN_STORE, code); } catch (e) { /* */ } history.replaceState(null, '', '#hogar'); ui.view = 'hogar'; render(); return openSheet(joinSheet(code)); }
     if (v === 'nuevo') { history.replaceState(null, '', '#inicio'); ui.view = 'inicio'; render(); return openTx(); }
     if (v === 'metas' || v === 'inversiones') { ui.pat = v; history.replaceState(null, '', '#patrimonio'); ui.view = 'patrimonio'; render(); return window.scrollTo({ top: 0 }); }
     ui.view = VIEWS[v] ? v : 'inicio';
@@ -2066,7 +2125,7 @@
   window.addEventListener('scroll', () => $('#topbar').classList.toggle('scrolled', scrollY > 4), { passive: true });
 
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-action],[data-settle],[data-hmdel],[data-hmmode],[data-homepaid],[data-sim],[data-simset],[data-simgoal],[data-dtab],[data-mtab],[data-debt],[data-debttype],[data-debtop],[data-recv],[data-recvkind],[data-collect],[data-remind],[data-ics-debt],[data-ics-rec],[data-splitpayer],[data-splitp],[data-splitinc],[data-splitdec],[data-syncmode],[data-freq],[data-recstop],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
+    const t = e.target.closest('[data-action],[data-homeiam],[data-settle],[data-hmdel],[data-hmmode],[data-homepaid],[data-sim],[data-simset],[data-simgoal],[data-dtab],[data-mtab],[data-debt],[data-debttype],[data-debtop],[data-recv],[data-recvkind],[data-collect],[data-remind],[data-ics-debt],[data-ics-rec],[data-splitpayer],[data-splitp],[data-splitinc],[data-splitdec],[data-syncmode],[data-freq],[data-recstop],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
     if (!t) return;
     const a = t.dataset.action;
 
@@ -2092,6 +2151,11 @@
     if (t.dataset.goalDel) { const i = state.goals.findIndex(g => g.id === t.dataset.goalDel); const [g] = state.goals.splice(i, 1); save(); render(); return toast('Meta eliminada', () => { state.goals.splice(i, 0, g); }); }
     if (t.dataset.op) { $$('[data-op]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
     // Hogar compartido
+    if (t.dataset.homeiam) {
+      const h = home(), m = h.members.find(x => x.id === t.dataset.homeiam); if (!m || !sync) return;
+      h.members.forEach(x => { if (x.uid === sync.userId) delete x.uid; }); m.uid = sync.userId; markMe(); homeRecalc(); save(); closeSheet(); render();
+      return toast(`Listo, eres ${m.name} en «${h.name}»`);
+    }
     if (t.dataset.settle) { const [fr, to, am] = t.dataset.settle.split(':'); return openSheet(settleSheet(fr, to, +am)); }
     if (t.dataset.hmdel !== undefined) { homeDraftSync(); ui.homeDraft.members.splice(+t.dataset.hmdel, 1); return homeRedraw(); }
     if (t.dataset.hmmode) { homeDraftSync(); ui.homeDraft.mode = t.dataset.hmmode; return homeRedraw(); }
@@ -2235,7 +2299,29 @@
       case 'home-expense': openTx(); ui.draft.cat = 'hogar'; ui.draft.home = { paidBy: meMember()?.id }; return redrawTx();
       case 'home-toggle': syncDraft(); ui.draft.home = ui.draft.home ? null : { paidBy: meMember()?.id }; if (ui.draft.home) ui.draft.split = null; return redrawTx();
       case 'hm-add': homeDraftSync(); ui.homeDraft.members.push({ id: uid(), name: '', pct: '', income: '' }); homeRedraw(); setTimeout(() => $$('[data-hmname]').at(-1)?.focus(), 50); return;
+      case 'home-share': return openSheet(inviteSheet());
+      case 'home-share-go': {
+        const b = $('#shareGo'); b.disabled = true; b.textContent = 'Preparando…';
+        try { await homeShare(); openSheet(inviteSheet()); render(); toast('Listo. Ahora manda la invitación.'); }
+        catch (e) { $('#shareErr').textContent = homeErr(e); b.disabled = false; b.textContent = 'Intentar de nuevo'; }
+        return;
+      }
+      case 'home-invite-send': {
+        const text = inviteText();
+        if (navigator.share && platform !== 'desktop') { navigator.share({ text }).catch(() => {}); return; }
+        window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener'); return;
+      }
+      case 'home-invite-copy': try { await navigator.clipboard.writeText(inviteText()); toast('Invitación copiada'); } catch (e) { toast('No se pudo copiar. Mantén presionado el código para copiarlo.'); } return;
+      case 'home-join': { let pj = ''; try { pj = localStorage.getItem(JOIN_STORE) || ''; } catch (e) { /* */ } return openSheet(joinSheet(pj)); }
+      case 'home-who': return openSheet(whoSheet());
       case 'home-del': {
+        if (homeLinked()) {
+          const owner = home().owner === sync?.userId;
+          if (!sync) return toast('Inicia sesión para salir del hogar compartido.');
+          if (!confirm(owner ? `¿Eliminar «${home().name}» para todos? Cada quien conserva sus gastos con su parte.` : `¿Salir de «${home().name}»? Tus gastos se conservan con tu parte.`)) return;
+          try { await homeLeave(); closeSheet(); location.hash = 'hogar'; render(); return toast(owner ? 'Hogar eliminado' : 'Saliste del hogar'); }
+          catch (e) { return toast(homeErr(e)); }
+        }
         if (!confirm('¿Eliminar el hogar? Tus gastos se conservan con tu parte.')) return;
         const prev = state.household; state.household = null; save(); closeSheet(); location.hash = 'hogar'; render();
         return toast('Hogar eliminado', () => { state.household = prev; });
@@ -2309,9 +2395,29 @@
     } catch { toast('Archivo no válido'); }
   });
 
-  document.addEventListener('submit', e => {
+  document.addEventListener('submit', async e => {
     e.preventDefault();
     const f = e.target;
+    if (f.id === 'joinForm') {
+      const inv = parseInvite(f.code.value), err = $('#joinErr'), btn = $('#joinSubmit');
+      if (!inv) { err.textContent = 'Ese código no parece una invitación de DOMI. Cópialo completo.'; return; }
+      if (homeLinked() && home().homeId === inv.homeId) { closeSheet(); location.hash = 'hogar'; return toast('Ya formas parte de este hogar'); }
+      btn.disabled = true; btn.textContent = 'Uniéndote…';
+      try {
+        if (homeLinked()) await homeLeave();
+        await homeJoin(inv);
+        closeSheet(); location.hash = 'hogar'; render(); haptic();
+        toast(`Te uniste a «${home().name}»`);
+        if (!meMember()) openSheet(whoSheet());
+      } catch (e2) { err.textContent = homeErr(e2); btn.disabled = false; btn.textContent = 'Unirme al hogar'; }
+      return;
+    }
+    if (f.id === 'whoForm') {
+      const name = f.newname.value.trim(), h = home(); if (!name || !sync) return;
+      h.members.forEach(x => { if (x.uid === sync.userId) delete x.uid; });
+      h.members.push({ id: uid(), name, pct: 0, income: 0, uid: sync.userId }); markMe(); homeRecalc(); save(); closeSheet(); render();
+      return toast(h.mode === 'percent' ? 'Agregado. Ajusten los porcentajes en Editar.' : `Listo, eres ${name} en «${h.name}»`);
+    }
     if (f.id === 'homeForm') {
       homeDraftSync();
       const h = ui.homeDraft;
@@ -2323,8 +2429,12 @@
       if (h.mode === 'percent' && Math.abs(sum(h.members, m => +m.pct || 0) - 100) >= 0.5) return toast('Los porcentajes deben sumar 100%');
       if (h.mode === 'income' && !sum(h.members, m => +m.income || 0)) return toast('Escribe el ingreso de cada quien');
       h.members.forEach(m => { m.pct = +m.pct || 0; m.income = +m.income || 0; });
+      const prevUids = (state.household?.members || []).filter(m => m.uid).map(m => m.uid);
+      const removed = prevUids.filter(u => !h.members.some(m => m.uid === u));
+      if (removed.length && homeLinked() && state.household.owner !== sync?.userId) return toast('Solo quien creó el hogar puede quitar a alguien que ya está en DOMI');
       const isNew = !state.household;
       state.household = h; ui.homeDraft = null;
+      if (removed.length) homeRemoveUsers(removed).catch(() => {});
       const me = h.members.find(m => m.me); if (me && !state.settings.name) state.settings.name = me.name;
       save(); closeSheet();
       if (location.hash !== '#hogar') location.hash = 'hogar'; else render();
@@ -2590,14 +2700,15 @@
   // ---- Registros ↔ estado ----
   const toRecords = () => {
     const r = {};
-    state.tx.forEach(t => { r['tx:' + t.id] = { kind: 'tx', data: t }; });
+    const linked = state.household && state.household.homeId;
+    state.tx.forEach(t => { if (linked && t.home) return; r['tx:' + t.id] = { kind: 'tx', data: t }; });
     state.goals.forEach(g => { r['goal:' + g.id] = { kind: 'goal', data: g }; });
     (state.investments || []).forEach(i => { r['inv:' + i.id] = { kind: 'inv', data: i }; });
     Object.entries(state.budgets).forEach(([k, v]) => { r['budget:' + k] = { kind: 'budget', data: { id: k, amount: v } }; });
     (state.recurring || []).forEach(x => { r['rec:' + x.id] = { kind: 'rec', data: x }; });
     (state.debts || []).forEach(x => { r['debt:' + x.id] = { kind: 'debt', data: x }; });
     (state.receivables || []).forEach(x => { r['recv:' + x.id] = { kind: 'recv', data: x }; });
-    if (state.household) r['meta:home'] = { kind: 'home', data: state.household };
+    if (state.household) r['meta:home'] = { kind: 'home', data: linked ? { homeId: state.household.homeId, key: state.household.key, owner: state.household.owner || null } : state.household };
     r['meta:perfil'] = { kind: 'meta', data: { currency: state.settings.currency, name: state.settings.name || '', rules: state.rules || {} } };
     return r;
   };
@@ -2611,7 +2722,11 @@
     else if (kind === 'debt') { state.debts = state.debts || []; put(state.debts); }
     else if (kind === 'recv') { state.receivables = state.receivables || []; put(state.receivables); }
     else if (kind === 'budget') { if (deleted) delete state.budgets[key]; else state.budgets[key] = data.amount; }
-    else if (kind === 'home') state.household = deleted ? null : data;
+    else if (kind === 'home') {
+      if (deleted) { if (state.household) { state.tx.forEach(t => { delete t.home; }); state.household = null; } }
+      else if (data.homeId) { if (!state.household || state.household.homeId !== data.homeId) { state.tx.forEach(t => { delete t.home; }); state.household = { homeId: data.homeId, key: data.key, owner: data.owner, name: 'Hogar', mode: 'equal', members: [], settles: [] }; } }
+      else state.household = data;
+    }
     else if (kind === 'meta' && !deleted) { state.settings.currency = data.currency || state.settings.currency; state.settings.name = data.name || ''; state.rules = data.rules || {}; }
   };
 
@@ -2674,7 +2789,7 @@
     finally { pulling = false; }
   };
 
-  const syncNow = async () => { if (!sync) return; setSync('syncing'); await push(); await pull(); };
+  const syncNow = async () => { if (!sync) return; setSync('syncing'); await push(); await pull(); await homeSyncNow(); };
 
   const listen = async () => {
     const db = await client();
@@ -2684,7 +2799,225 @@
       .subscribe();
   };
 
-  afterSave = () => { if (sync && !applyingRemote) schedulePush(); };
+  afterSave = () => {
+    if (hsync.homeId && (!state.household || state.household.homeId !== hsync.homeId)) homeDisconnect();
+    if (sync && !applyingRemote) { schedulePush(); scheduleHomePush(); }
+  };
+
+  // =====================================================================
+  // Hogar compartido entre cuentas
+  // - Cada hogar tiene su propia llave AES-GCM, que solo viaja dentro de la invitación.
+  // - Se comparten: la configuración (quiénes y cómo se reparten), los gastos del hogar
+  //   (total y quién pagó, sin recibos) y los saldos. Lo personal de cada quien no se comparte.
+  // - A cada integrante le cuenta como gasto solo su parte, calculada en su propio dispositivo.
+  // =====================================================================
+  const HOME_STORE = 'domi.home.v1', JOIN_STORE = 'domi.join';
+  let hsync = (() => { try { return JSON.parse(localStorage.getItem(HOME_STORE)) || {}; } catch (e) { return {}; } })();
+  const saveHsync = () => { try { localStorage.setItem(HOME_STORE, JSON.stringify(hsync)); } catch (e) { /* sin almacenamiento */ } };
+  let homeKey = null, homeKeyFor = '', homeChannel = null;
+  const homeLinked = () => !!(state.household && state.household.homeId);
+  const homeReady = () => !!(sync && cryptoKey && homeLinked() && state.household.key);
+  const b64url = buf => b64(buf).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const unb64url = s => unb64(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4));
+  const sha256hex = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', te.encode(s)))].map(x => x.toString(16).padStart(2, '0')).join('');
+  const joinToken = async keyB64 => b64url(await crypto.subtle.digest('SHA-256', te.encode('domi-join:' + keyB64)));
+  const useHomeKey = async () => {
+    const h = state.household;
+    if (homeKey && homeKeyFor === h.homeId) return;
+    homeKey = await crypto.subtle.importKey('raw', unb64url(h.key), 'AES-GCM', false, ['encrypt', 'decrypt']); homeKeyFor = h.homeId;
+  };
+  const hEnc = async str => { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, homeKey, te.encode(str)); return { payload: b64(ct), iv: b64(iv) }; };
+  const hDec = async (p, iv) => td.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv) }, homeKey, unb64(p)));
+  const inviteCode = () => `${state.household.homeId}.${state.household.key}`;
+  const inviteLink = () => `https://aloshkagarcia-designer.github.io/DOMI-/app/#unir=${inviteCode()}`;
+  const parseInvite = raw => {
+    const m = String(raw || '').trim().match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.([A-Za-z0-9_-]{40,})/i);
+    return m ? { homeId: m[1].toLowerCase(), key: m[2] } : null;
+  };
+
+  // Lo que se comparte, en forma neutral (sin el monto personal de cada quien)
+  const homeRecords = () => {
+    const h = state.household, r = {};
+    r.cfg = { name: h.name, mode: h.mode, owner: h.owner || null, members: h.members.map(({ me, ...m }) => m) };
+    (h.settles || []).forEach(s => { r['settle:' + s.id] = s; });
+    state.tx.filter(t => t.home).forEach(t => { r['tx:' + t.id] = { id: t.id, type: 'expense', cat: t.cat, sub: t.sub || null, note: t.note || '', date: t.date, account: t.account, created: t.created, home: t.home }; });
+    return r;
+  };
+  // Mi parte de cada gasto del hogar, según quién soy en este hogar
+  const homeRecalc = () => {
+    const me = meMember();
+    state.tx.forEach(t => { if (t.home) t.amount = Math.round(t.home.total * ((t.home.shares || homeShares())[me?.id] || 0) * 100) / 100; });
+  };
+  const markMe = () => { (state.household?.members || []).forEach(m => { if (m.uid) m.me = !!(sync && m.uid === sync.userId); }); };
+  const applyHome = (id, data, deleted) => {
+    const h = state.household;
+    if (id === 'cfg') {
+      if (deleted || !data) return;
+      h.name = data.name; h.mode = data.mode; h.owner = data.owner || h.owner;
+      const meLocal = h.members.find(m => m.me && !m.uid);   // mi elección aún no subida
+      h.members = data.members.map(m => ({ ...m }));
+      if (meLocal && !h.members.some(m => m.uid === sync.userId)) { const x = h.members.find(m => m.id === meLocal.id); if (x) x.uid = sync.userId; }
+      markMe(); homeRecalc(); return;
+    }
+    const key = id.slice(id.indexOf(':') + 1);
+    if (id.startsWith('settle:')) {
+      h.settles = h.settles || []; const i = h.settles.findIndex(s => s.id === key);
+      if (deleted) { if (i >= 0) h.settles.splice(i, 1); } else if (i >= 0) h.settles[i] = data; else h.settles.push(data);
+      return;
+    }
+    if (id.startsWith('tx:')) {
+      const i = state.tx.findIndex(t => t.id === key);
+      if (deleted) { if (i >= 0 && state.tx[i].home) state.tx.splice(i, 1); return; }
+      const prev = i >= 0 ? state.tx[i] : { receipt: null, reimb: null };
+      const me = meMember();
+      const t = { ...prev, ...data, amount: Math.round(data.home.total * ((data.home.shares || {})[me?.id] || 0) * 100) / 100 };
+      if (i >= 0) state.tx[i] = t; else state.tx.push(t);
+    }
+  };
+
+  let hPushing = false, hPushAgain = false, hPushTimer = null, hPulling = false, hPullTimer = null;
+  const scheduleHomePush = () => { if (!homeReady()) return; clearTimeout(hPushTimer); hPushTimer = setTimeout(homePush, 800); };
+  const scheduleHomePull = () => { clearTimeout(hPullTimer); hPullTimer = setTimeout(homePull, 350); };
+  const homePush = async () => {
+    if (!homeReady() || hsync.homeId !== state.household.homeId) return;
+    if (hPushing) { hPushAgain = true; return; }
+    hPushing = true;
+    try {
+      await useHomeKey();
+      const db = await client(), recs = homeRecords(), known = hsync.known || {}, rows = [], next = {}, now = new Date().toISOString(), hid = state.household.homeId;
+      for (const [id, data] of Object.entries(recs)) {
+        const json = JSON.stringify(data), hh = hashStr(json);
+        if (known[id] !== hh) { const e = await hEnc(json); rows.push({ home_id: hid, id, payload: e.payload, iv: e.iv, deleted: false, updated_at: now }); }
+        next[id] = hh;
+      }
+      for (const id of Object.keys(known)) if (!recs[id]) rows.push({ home_id: hid, id, payload: '', iv: '', deleted: true, updated_at: now });
+      for (let i = 0; i < rows.length; i += 100) { const { error } = await db.from('domi_home_records').upsert(rows.slice(i, i + 100), { onConflict: 'home_id,id' }); if (error) throw error; }
+      hsync.known = next; saveHsync();
+    } catch (e) { console.warn('hogar push', e); }
+    finally { hPushing = false; if (hPushAgain) { hPushAgain = false; scheduleHomePush(); } }
+  };
+  const homePull = async () => {
+    if (!homeReady() || hPulling || hsync.homeId !== state.household.homeId) return;
+    hPulling = true;
+    try {
+      await useHomeKey();
+      const db = await client(), hid = state.household.homeId;
+      const from = hsync.since ? new Date(new Date(hsync.since).getTime() - 5 * 60000).toISOString() : '1970-01-01T00:00:00Z';
+      let max = hsync.since || '', changed = false, page = 0;
+      hsync.known = hsync.known || {};
+      for (;;) {
+        const { data, error } = await db.from('domi_home_records').select('id,payload,iv,deleted,updated_at').eq('home_id', hid)
+          .gt('updated_at', from).order('updated_at', { ascending: true }).order('id').range(page * 500, page * 500 + 499);
+        if (error) throw error;
+        // La configuración primero: define quién soy y cómo se reparte
+        data.sort((a, b) => (a.id === 'cfg' ? -1 : 0) - (b.id === 'cfg' ? -1 : 0));
+        for (const row of data) {
+          if (row.deleted) { if (hsync.known[row.id] !== undefined) { applyHome(row.id, null, true); delete hsync.known[row.id]; changed = true; } }
+          else {
+            const json = await hDec(row.payload, row.iv), hh = hashStr(json);
+            if (hsync.known[row.id] !== hh) { applyHome(row.id, JSON.parse(json), false); hsync.known[row.id] = hh; changed = true; }
+          }
+          if (!max || new Date(row.updated_at) > new Date(max)) max = row.updated_at;
+        }
+        if (data.length < 500) break;
+        page++;
+      }
+      hsync.since = max; saveHsync();
+      if (changed) { applyingRemote = true; save(); applyingRemote = false; schedulePush(); if (!sheet.open) render(); }
+      return changed;
+    } catch (e) { console.warn('hogar pull', e); }
+    finally { hPulling = false; }
+  };
+  const homeListen = async () => {
+    const db = await client();
+    if (homeChannel) { try { await db.removeChannel(homeChannel); } catch (e) { /* cerrado */ } }
+    homeChannel = db.channel('domi-home-' + state.household.homeId)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'domi_home_records', filter: 'home_id=eq.' + state.household.homeId }, () => scheduleHomePull())
+      .subscribe();
+  };
+  const homeDisconnect = async () => {
+    clearTimeout(hPushTimer); clearTimeout(hPullTimer);
+    if (homeChannel) { try { const db = await client(); await db.removeChannel(homeChannel); } catch (e) { /* cerrado */ } }
+    homeChannel = null; homeKey = null; homeKeyFor = ''; hsync = {}; saveHsync();
+  };
+  // Deja el hogar solo en este dispositivo: los gastos se quedan como tuyos, con tu parte
+  const homeUnlinkLocal = async () => {
+    state.tx.forEach(t => { if (t.home) { delete t.home; } });
+    state.household = null;
+    await homeDisconnect();
+    save();
+  };
+  // ¿Sigo perteneciendo a este hogar? (si lo borraron o me quitaron)
+  const homeCheck = async () => {
+    if (!homeReady()) return true;
+    try {
+      const db = await client();
+      const { data, error } = await db.from('domi_home_members').select('user_id').eq('home_id', state.household.homeId).eq('user_id', sync.userId).maybeSingle();
+      if (error) return true;
+      if (!data) { const n = state.household.name; await homeUnlinkLocal(); render(); toast(`Ya no formas parte de «${n}». Tus gastos se conservan con tu parte.`); return false; }
+      return true;
+    } catch (e) { return true; }
+  };
+  const homeConnect = async () => {
+    if (!homeReady()) { if (hsync.homeId && !homeLinked()) await homeDisconnect(); return; }
+    const hid = state.household.homeId;
+    if (hsync.homeId !== hid) { hsync = { homeId: hid, known: {}, since: '' }; saveHsync(); }
+    try {
+      await useHomeKey();
+      if (!(await homeCheck())) return;
+      if (!homeChannel) await homeListen();
+      await homePull();
+      await homePush();
+      if (homeLinked() && !meMember() && !sheet.open) openSheet(whoSheet());
+    } catch (e) { console.warn('hogar', e); }
+  };
+
+  // Crear la versión compartida del hogar (quien invita)
+  const homeShare = async () => {
+    const h = state.household, db = await client();
+    const key = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    const homeId = crypto.randomUUID ? crypto.randomUUID() : ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+    const hash = await sha256hex(await joinToken(key));
+    let r = await db.from('domi_homes').insert({ id: homeId, owner: sync.userId, join_hash: hash });
+    if (r.error) throw r.error;
+    r = await db.from('domi_home_members').insert({ home_id: homeId, user_id: sync.userId });
+    if (r.error) throw r.error;
+    h.homeId = homeId; h.key = key; h.owner = sync.userId;
+    const me = h.members.find(m => m.me); if (me) me.uid = sync.userId;
+    hsync = { homeId, known: {}, since: '' }; saveHsync();
+    save();
+    await homeConnect();
+  };
+  // Unirse con una invitación (quien la recibe)
+  const homeJoin = async inv => {
+    const db = await client();
+    const { data, error } = await db.rpc('domi_join_home', { h: inv.homeId, token: await joinToken(inv.key) });
+    if (error) throw error;
+    if (!data) throw new Error('La invitación no es válida o el hogar ya no existe.');
+    if (state.household && state.household.homeId !== inv.homeId) state.tx.forEach(t => { if (t.home) delete t.home; });
+    if (!state.household || state.household.homeId !== inv.homeId) state.household = { homeId: inv.homeId, key: inv.key, owner: null, name: 'Hogar', mode: 'equal', members: [], settles: [] };
+    try { localStorage.removeItem(JOIN_STORE); } catch (e) { /* */ }
+    await homeDisconnect();
+    hsync = { homeId: inv.homeId, known: {}, since: '' }; saveHsync();
+    save();
+    await homeConnect();
+  };
+  // Salir del hogar o, si lo creaste, eliminarlo para todos
+  const homeLeave = async () => {
+    const h = state.household, db = await client();
+    // Quien sale deja su lugar libre para que los demás lo vean «sin unirse»
+    if (h.owner !== sync.userId) { h.members.forEach(m => { if (m.uid === sync.userId) delete m.uid; }); try { await useHomeKey(); await homePush(); } catch (e) { /* sin conexión */ } }
+    const r = h.owner === sync.userId ? await db.from('domi_homes').delete().eq('id', h.homeId) : await db.from('domi_home_members').delete().eq('home_id', h.homeId).eq('user_id', sync.userId);
+    if (r.error) throw r.error;
+    await homeUnlinkLocal();
+  };
+  const homeRemoveUsers = async uids => {
+    if (!uids.length || !homeReady()) return;
+    const db = await client();
+    for (const u of uids) await db.from('domi_home_members').delete().eq('home_id', state.household.homeId).eq('user_id', u);
+  };
+  const homeSyncNow = async () => { if (!homeReady()) return homeConnect(); if (!(await homeCheck())) return; if (!homeChannel) await homeListen(); await homePush(); await homePull(); };
+
 
   // ---- Cuenta: crear / entrar / salir ----
   const enableSync = async (session, password, keyRow, mode) => {
@@ -2711,6 +3044,7 @@
     setSync('syncing');
     await pull();   // primero lo de la cuenta…
     await push();   // …luego lo que solo existe en este dispositivo
+    await homeConnect();
     render();
   };
 
@@ -2731,6 +3065,7 @@
   };
   const signOut = async () => {
     try { const db = await client(); if (channel) await db.removeChannel(channel); await db.auth.signOut(); } catch (e) { /* sin conexión: se cierra localmente */ }
+    await homeDisconnect();
     channel = null; sync = null; cryptoKey = null; saveSync(); setSync('off'); render();
   };
 
@@ -2746,7 +3081,7 @@
     } catch (e) { setSync(navigator.onLine ? 'error' : 'offline', errMsg(e)); }
   };
   window.addEventListener('online', () => { if (sync) syncNow(); });
-  setInterval(() => { if (sync && cryptoKey && document.visibilityState === 'visible') pull(); }, 30000);
+  setInterval(() => { if (sync && cryptoKey && document.visibilityState === 'visible') { pull(); homePull(); } }, 30000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') return; if (runRecurring() && !sheet.open) render(); if (sync) syncNow(); });
 
   // ---- Interfaz ----
@@ -2789,7 +3124,10 @@
     try {
       if (mode === 'signup') await createAccount(email, pass, 'merge');
       else await signIn(email, pass, ui.syncMode === 'replace' ? 'replace' : 'merge');
-      haptic(); closeSheet(); ui.syncMode = null; location.hash = 'ajustes'; render();
+      haptic(); closeSheet(); ui.syncMode = null;
+      let pj = null; try { pj = localStorage.getItem(JOIN_STORE); } catch (e2) { /* */ }
+      if (pj && !homeLinked()) { location.hash = 'hogar'; render(); toast('Sesión iniciada. Ahora únete al hogar.'); return openSheet(joinSheet(pj)); }
+      location.hash = 'ajustes'; render();
       toast(mode === 'signup' ? 'Cuenta creada. Tus datos ya se sincronizan.' : 'Listo. Tus datos están sincronizados.');
     } catch (e) {
       if (sync == null) cryptoKey = null;
