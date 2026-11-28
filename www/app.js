@@ -35,6 +35,13 @@
     pie: 'M21 12a9 9 0 1 1-9-9v9zM15 3.5A9 9 0 0 1 20.5 9H15z',
     gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
     plus: 'M12 5v14M5 12h14',
+    fuel: 'M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h12M4 10h10M14 8h2.5A1.5 1.5 0 0 1 18 9.5V17a1.5 1.5 0 0 0 3 0V9l-3-3',
+    scissors: 'M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12',
+    paw: 'M12 20.5c-3.2 0-6-1.5-6-4 0-2.4 2.8-5 6-5s6 2.6 6 5c0 2.5-2.8 4-6 4zM3.2 11a1.8 2.2 0 1 0 3.6 0a1.8 2.2 0 1 0-3.6 0zM17.2 11a1.8 2.2 0 1 0 3.6 0a1.8 2.2 0 1 0-3.6 0zM7.2 6a1.8 2.2 0 1 0 3.6 0a1.8 2.2 0 1 0-3.6 0zM13.2 6a1.8 2.2 0 1 0 3.6 0a1.8 2.2 0 1 0-3.6 0z',
+    person: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
+    users: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20a6.5 6.5 0 0 1 13 0M16.5 11.5a2.5 2.5 0 1 0 0-5M17.5 14.5a5 5 0 0 1 4 5.5',
+    card: 'M3 6h18v12H3zM3 10h18M7 15h4',
+    calendarDue: 'M4 6h16v15H4zM4 10h16M8 3v4M16 3v4M12 13.5v3l2 1.5',
     check: 'M5 12.5l4.5 4.5L19 7.5',
     calendar: 'M4 6h16v15H4zM4 10h16M8 3v4M16 3v4',
     x: 'M18 6 6 18M6 6l12 12',
@@ -90,6 +97,7 @@
     expense: [
       { id: 'comida', name: 'Comida', icon: 'food', color: '#3d6bff' },
       { id: 'transporte', name: 'Transporte', icon: 'car', color: '#3bff8a' },
+      { id: 'gasolina', name: 'Gasolina', icon: 'fuel', color: '#6f8cff' },
       { id: 'hogar', name: 'Hogar', icon: 'house', color: 'var(--cat-ink)' },
       { id: 'compras', name: 'Compras', icon: 'bag', color: '#8aa5ff' },
       { id: 'servicios', name: 'Servicios', icon: 'bolt', color: '#1f9e57', subs: [
@@ -103,6 +111,8 @@
         { id: 'otro-servicio', name: 'Otro', icon: 'dots' }
       ] },
       { id: 'salud', name: 'Salud', icon: 'pulse', color: '#9a9a9e' },
+      { id: 'cuidado', name: 'Cuidado personal', icon: 'scissors', color: '#bfffdc' },
+      { id: 'mascotas', name: 'Mascotas', icon: 'paw', color: '#2f9e6a' },
       { id: 'ocio', name: 'Ocio', icon: 'ticket', color: '#a6ffcb' },
       { id: 'suscripciones', name: 'Suscripciones', icon: 'repeat', color: '#2238a8', subs: [
         { id: 'streaming', name: 'Streaming', icon: 'play' },
@@ -113,7 +123,10 @@
         { id: 'videojuegos', name: 'Videojuegos', icon: 'gamepad' },
         { id: 'otra-suscripcion', name: 'Otra', icon: 'dots' }
       ] },
-      { id: 'educacion', name: 'Educación', icon: 'book', color: 'var(--cat-ink-2)' },
+      { id: 'educacion', name: 'Educación', icon: 'book', color: 'var(--cat-ink-2)', subs: [
+        { id: 'edu-personal', name: 'Personal', icon: 'person' },
+        { id: 'edu-hijos', name: 'Hijos', icon: 'users' }
+      ] },
       { id: 'viajes', name: 'Viajes', icon: 'plane', color: '#5b5b60' },
       { id: 'otros', name: 'Otros', icon: 'dots', color: '#3a3a3e' }
     ],
@@ -321,7 +334,7 @@
     }
     const c = cat(t.cat), s = subOf(t);
     const title = t.note || (s ? s.name : c.name);
-    const flags = (t.receipt ? icon('receipt') : '');
+    const flags = (t.receipt ? icon('receipt') : '') + (t.recurId ? icon('repeat') : '');
     const status = t.reimb ? `<span class="status ${t.reimb === 'done' ? 'done' : ''}">${t.reimb === 'done' ? 'Reembolsado' : 'Por reembolsar'}</span>` : '';
     return `<li class="tx" data-edit="${t.id}" tabindex="0" role="button" aria-label="Editar ${esc(title)}">
       <div class="tx-ico ${t.type}">${icon(s ? s.icon : c.icon)}</div>
@@ -421,6 +434,83 @@
   };
 
   const haptic = (p = 12) => { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { /* iOS no soporta vibración web */ } };
+
+  // ---------- Gastos e ingresos recurrentes ----------
+  const FREQS = [
+    { id: 'weekly', name: 'Semanal', long: 'Cada semana' },
+    { id: 'biweekly', name: 'Quincenal', long: 'Cada quincena' },
+    { id: 'monthly', name: 'Mensual', long: 'Cada mes' },
+    { id: 'bimonthly', name: 'Bimestral', long: 'Cada 2 meses' },
+    { id: 'yearly', name: 'Anual', long: 'Cada año' }
+  ];
+  const freqOf = id => FREQS.find(f => f.id === id) || FREQS[2];
+  const parseISO = s => { const [Y, M, D] = s.split('-').map(Number); return new Date(Y, M - 1, D, 12); };
+  // Siguiente fecha; "day" conserva el día original (p. ej. 31) aunque un mes sea más corto
+  const addFreq = (date, freq, day) => {
+    const d = parseISO(date);
+    if (freq === 'weekly') { d.setDate(d.getDate() + 7); return iso(d); }
+    if (freq === 'biweekly') {   // quincena mexicana: del 1–15 al 16–fin y viceversa
+      const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      if (d.getDate() <= 15) { d.setDate(Math.min(d.getDate() + 15, last)); return iso(d); }
+      const n = new Date(d.getFullYear(), d.getMonth() + 1, Math.max(1, d.getDate() - 15), 12); return iso(n);
+    }
+    const months = freq === 'bimonthly' ? 2 : freq === 'yearly' ? 12 : 1;
+    const target = new Date(d.getFullYear(), d.getMonth() + months, 1, 12);
+    const last = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    target.setDate(Math.min(day || d.getDate(), last));
+    return iso(target);
+  };
+  // Registra solos los pagos recurrentes que ya llegaron a su fecha
+  const runRecurring = () => {
+    let changed = false; const t0 = today();
+    (state.recurring || []).forEach(r => {
+      if (!r.active) return;
+      let guard = 0;
+      while (r.next <= t0 && guard++ < 60) {
+        const id = `r-${r.id}-${r.next}`;   // id fijo: dos dispositivos generan el mismo registro, sin duplicados
+        if (!state.tx.some(t => t.id === id)) state.tx.push({ ...r.template, id, date: r.next, recurId: r.id, receipt: null, reimb: null, created: parseISO(r.next).getTime() });
+        r.next = addFreq(r.next, r.freq, r.day); changed = true;
+      }
+    });
+    if (changed) save();
+    return changed;
+  };
+  // Próximos pagos (recurrentes y deudas) en los siguientes N días
+  const upcoming = (days = 30) => {
+    const end = iso(new Date(Date.now() + days * 86400000)), t0 = today(), out = [];
+    (state.recurring || []).filter(r => r.active && r.template.type === 'expense').forEach(r => {
+      let d = r.next, g = 0;
+      while (d <= end && g++ < 10) { if (d >= t0) out.push({ date: d, name: r.template.note || (subOf(r.template) || cat(r.template.cat)).name, amount: r.template.amount, icon: (subOf(r.template) || cat(r.template.cat)).icon, kind: 'rec', freq: r.freq }); d = addFreq(d, r.freq, r.day); }
+    });
+    (state.debts || []).filter(x => x.balance > 0 && x.dueDay && x.payment).forEach(x => {
+      const n = new Date(); let due = new Date(n.getFullYear(), n.getMonth(), Math.min(x.dueDay, new Date(n.getFullYear(), n.getMonth() + 1, 0).getDate()), 12);
+      if (iso(due) < t0) due = new Date(n.getFullYear(), n.getMonth() + 1, Math.min(x.dueDay, new Date(n.getFullYear(), n.getMonth() + 2, 0).getDate()), 12);
+      if (iso(due) <= end) out.push({ date: iso(due), name: x.name, amount: Math.min(x.payment, x.balance), icon: debtType(x.type).icon, kind: 'debt' });
+    });
+    return out.sort((a, b) => a.date.localeCompare(b.date));
+  };
+  const untilLabel = d => { const n = daysSince(d) * -1; return n === 0 ? 'Hoy' : n === 1 ? 'Mañana' : `En ${n} días`; };
+  const upcomingCard = () => {
+    const list = upcoming(30);
+    if (!list.length) return '';
+    const total = sum(list, x => x.amount);
+    return `<section class="card c-upcoming"><div class="card-head"><h2 class="h2">Próximos pagos</h2><button class="link" data-action="rec-list">Recurrentes</button></div>
+      <p class="up-total"><span class="eyebrow">Próximos 30 días</span><b class="num">${money(total, { compact: true })}</b></p>
+      <ul class="up-list">${list.slice(0, 6).map(x => `<li><span class="up-date"><b>${parseISO(x.date).getDate()}</b>${MONTHS[parseISO(x.date).getMonth()].slice(0, 3)}</span>
+        <span class="up-main"><span class="up-name">${esc(x.name)}</span><span class="up-meta">${icon(x.kind === 'debt' ? 'card' : 'repeat')}${x.kind === 'debt' ? 'Pago de deuda' : freqOf(x.freq).long} · ${untilLabel(x.date)}</span></span>
+        <span class="num up-amt">${money(x.amount, { compact: true })}</span></li>`).join('')}</ul>
+      ${list.length > 6 ? `<p class="inv-note">Y ${list.length - 6} pagos más este mes.</p>` : ''}</section>`;
+  };
+  const recListSheet = () => {
+    const recs = (state.recurring || []).filter(r => r.active);
+    return `${sheetHead('Pagos recurrentes')}
+    <p class="lede" style="margin:-6px 0 12px">DOMI los registra solos en su fecha. Toca uno para dejar de repetirlo.</p>
+    ${recs.length ? `<ul class="tx-list">${recs.map(r => { const c = subOf(r.template) || cat(r.template.cat); return `<li class="tx" data-recstop="${r.id}" role="button" tabindex="0">
+      <div class="tx-ico ${r.template.type}">${icon(c.icon)}</div>
+      <div class="tx-main"><div class="tx-title">${esc(r.template.note || c.name)}</div><div class="tx-meta"><span>${freqOf(r.freq).long} · siguiente: ${esc(shortDate(r.next))}</span></div></div>
+      <div class="tx-amt num ${r.template.type}">${r.template.type === 'income' ? '+' : '−'}${money(r.template.amount)}</div></li>`; }).join('')}</ul>`
+      : '<div class="cal-empty">Aún no tienes pagos recurrentes. Al registrar un gasto, activa «Se repite».</div>'}`;
+  };
 
   const viewInicio = () => {
     const list = inMonth();
@@ -780,7 +870,7 @@
       <span class="field-label">Categoría</span>
       <div class="chips">${cats.map(c => `<button type="button" class="chip" data-cat="${c.id}" aria-pressed="${d.cat === c.id}">${icon(c.icon)}${c.name}</button>`).join('')}</div>
       ${cat(d.cat).subs ? `<div class="subcats" role="group" aria-label="Tipo de ${esc(cat(d.cat).name.toLowerCase())}">
-        <span class="field-label">¿Qué ${{ servicios: 'servicio', suscripciones: 'suscripción' }[d.cat] || 'tipo'}?</span>
+        <span class="field-label">${{ servicios: '¿Qué servicio?', suscripciones: '¿Qué suscripción?', educacion: '¿Para quién?' }[d.cat] || '¿Qué tipo?'}</span>
         <div class="sub-chips">${cat(d.cat).subs.map(s => `<button type="button" class="sub-chip" data-sub="${s.id}" aria-pressed="${d.sub === s.id}">${icon(s.icon)}${s.name}</button>`).join('')}</div>
       </div>` : ''}
       <div class="row2" style="margin-top:6px">
@@ -799,6 +889,10 @@
         <span class="switch" aria-hidden="true" aria-checked="${!!d.reimb}"></span></button>
       ${d.reimb ? `<button type="button" class="toggle-row" role="switch" aria-checked="${d.reimb === 'done'}" data-action="reimb-done"><span><b>Ya me lo pagaron</b><small>Marca como reembolsado</small></span>
         <span class="switch" aria-hidden="true" aria-checked="${d.reimb === 'done'}"></span></button>` : ''}` : ''}
+      <button type="button" class="toggle-row" role="switch" aria-checked="${!!d.recur}" data-action="recur-toggle"><span><b>Se repite</b><small>${d.recur ? 'DOMI lo registrará solo en cada fecha' : 'Renta, Netflix, colegiatura, nómina…'}</small></span>
+        <span class="switch" aria-hidden="true" aria-checked="${!!d.recur}"></span></button>
+      ${d.recur ? `<div class="sub-chips recur-chips" role="group" aria-label="Frecuencia">${FREQS.map(f => `<button type="button" class="sub-chip" data-freq="${f.id}" aria-pressed="${d.recur === f.id}">${f.name}</button>`).join('')}</div>
+      <p class="inv-note">Siguiente: ${esc(shortDate(addFreq(d.date || today(), d.recur, +(d.date || today()).slice(8))))}</p>` : ''}
       <div class="sheet-actions">
         ${d.id ? `<button type="button" class="btn danger" data-action="tx-del" style="flex:0 0 auto;width:52px;padding:0" aria-label="Eliminar">${icon('trash')}</button>` : ''}
         <button type="submit" class="btn ${d.type === 'income' ? 'green' : 'primary'}">${d.id ? 'Guardar cambios' : d.type === 'income' ? 'Agregar ingreso' : 'Agregar gasto'}</button>
@@ -820,6 +914,8 @@
     if (t && t.type === 'invest') return openSheet(invTxSheet(t));
     const defDate = ui.month === ym(new Date()) ? today() : `${ui.month}-01`;
     ui.draft = t ? { ...t } : { type: 'expense', amount: '', cat: 'comida', date: defDate, account: 'Débito', note: '', receipt: null, reimb: null };
+    const r = t && t.recurId && (state.recurring || []).find(x => x.id === t.recurId && x.active);
+    ui.draft.recur = r ? r.freq : null;
     openSheet(txForm());
     if (!t) setTimeout(() => $('#txForm [name=amount]')?.focus(), 60);
   };
@@ -1032,8 +1128,11 @@
   // Categorización automática por palabras clave de comercios comunes en México
   const RULES = [
     [/uber ?eats|rappi|didi ?food|starbucks|restaur|taqueria|cafe|vips|sanborns|little caesar|domino|kfc|mcdonald|burger|pizza/, 'comida'],
-    [/walmart|bodega aurrera|soriana|chedraui|la comer|costco|sams|heb|oxxo|7.?eleven|superama|city market|fresko|super/, 'comida'],
-    [/uber|didi|cabify|pemex|gasolin|bp |shell|g500|mobil|televia|pase |iave|metro|estacionam|parking/, 'transporte'],
+    [/walmart|bodega aurrera|soriana|chedraui|la comer|costco|sams|heb|oxxo(?! gas)|7.?eleven|superama|city market|fresko|super/, 'comida'],
+    [/pemex|gasolin|gasoliner|bp |shell|g500|mobil|oxxo gas|hidrosina|arco |total energies|chevron|repsol/, 'gasolina'],
+    [/uber|didi|cabify|televia|pase |iave|metro|estacionam|parking|caseta/, 'transporte'],
+    [/petco|\+kota|maskota|veterinari|mascota|pet ?shop|royal canin|dog|gato/, 'mascotas'],
+    [/estetica|barberia|barber|salon de belleza|spa |sephora|ulta|manicure|unas|nail|peluqueria|perfumeria|cosmetic/, 'cuidado'],
     [/cfe|comision federal/, 'servicios', 'luz'], [/telmex|totalplay|izzi|megacable|infinitum/, 'servicios', 'internet'],
     [/telcel|at&t|att |movistar|bait|virgin mobile/, 'servicios', 'celular'], [/sacmex|agua|aguas de/, 'servicios', 'agua'],
     [/naturgy|gas natural|gas lp|zeta gas|gas express/, 'servicios', 'gas'], [/sky |dish |star tv/, 'servicios', 'tv'],
@@ -1224,11 +1323,16 @@
       if (last >= 14) add(D(14), 'expense', 'servicios', rnd(280, 420), '', 'Efectivo', { sub: 'gas' });
       for (let d = 1; d <= last; d++) {
         if (Math.random() < 0.55) add(D(d), 'expense', 'comida', rnd(85, 420), ['Café', 'Comida', 'Súper', 'Tacos', 'Cena'][d % 5], d % 3 ? 'Débito' : 'Efectivo');
-        if (Math.random() < 0.3) add(D(d), 'expense', 'transporte', rnd(45, 260), d % 2 ? 'Uber' : 'Gasolina', 'Crédito');
+        if (Math.random() < 0.22) add(D(d), 'expense', 'transporte', rnd(45, 220), d % 2 ? 'Uber' : 'Metro y camión', d % 2 ? 'Crédito' : 'Efectivo');
+        if (d % 7 === 2) add(D(d), 'expense', 'gasolina', rnd(650, 900), 'Pemex', 'Crédito');
+        if (d === 9) add(D(d), 'expense', 'mascotas', rnd(450, 900), 'Croquetas Petco', 'Crédito');
+        if (d === 21) add(D(d), 'expense', 'cuidado', rnd(250, 600), 'Barbería', 'Efectivo');
         if (Math.random() < 0.08) add(D(d), 'expense', 'compras', rnd(350, 1800), ['Ropa', 'Amazon', 'Farmacia'][d % 3], 'Crédito');
         if (Math.random() < 0.06) add(D(d), 'expense', 'ocio', rnd(180, 900), ['Cine', 'Concierto', 'Bar'][d % 3], 'Crédito');
       }
       if (last >= 12) add(D(12), 'expense', 'salud', rnd(400, 900), 'Consulta', 'Débito');
+      if (last >= 5) add(D(5), 'expense', 'educacion', 3200, 'Colegiatura', 'Transferencia', { sub: 'edu-hijos' });
+      if (last >= 16 && m % 2 === 0) add(D(16), 'expense', 'educacion', 349, 'Curso Domestika', 'Crédito', { sub: 'edu-personal' });
       if (last >= 18) add(D(18), 'expense', 'viajes', rnd(1200, 2600), 'Comida con cliente', 'Crédito', { reimb: m === 0 ? 'pending' : 'done' });
     }
     // Inversiones con historial mensual (crecimiento suave, cripto con baja)
@@ -1251,7 +1355,7 @@
     ];
     const cetes = investments[0];
     tx.push({ id: uid(), type: 'invest', dir: 'in', invId: cetes.id, amount: 3000, account: 'Débito', date: iso(new Date(now.getFullYear(), now.getMonth(), Math.max(1, now.getDate() - 2), 12)), note: cetes.name, created: Date.now() });
-    state = { ...state, tx, investments, budgets: { comida: 6000, servicios: 2200, transporte: 2500, compras: 2500, ocio: 1500, suscripciones: 1400 },
+    state = { ...state, tx, investments, budgets: { comida: 6000, servicios: 2200, gasolina: 3200, transporte: 1500, compras: 2500, ocio: 1500, suscripciones: 1400 },
       goals: [
         { id: uid(), name: 'Fondo de emergencia', target: 60000, saved: 38500, deadline: `${now.getFullYear() + 1}-03-01` },
         { id: uid(), name: 'Viaje a Japón', target: 45000, saved: 12800, deadline: `${now.getFullYear() + 1}-10-01` },
@@ -1273,7 +1377,7 @@
   window.addEventListener('scroll', () => $('#topbar').classList.toggle('scrolled', scrollY > 4), { passive: true });
 
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-action],[data-syncmode],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
+    const t = e.target.closest('[data-action],[data-syncmode],[data-freq],[data-recstop],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
     if (!t) return;
     const a = t.dataset.action;
 
@@ -1300,6 +1404,12 @@
     if (t.dataset.op) { $$('[data-op]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
     // Patrimonio
     if (t.dataset.pat) { ui.pat = t.dataset.pat; return render(); }
+    if (t.dataset.freq && ui.draft) { ui.draft.recur = t.dataset.freq; return redrawTx(); }
+    if (t.dataset.recstop) {
+      const r = (state.recurring || []).find(x => x.id === t.dataset.recstop);
+      if (!r || !confirm(`¿Dejar de repetir «${r.template.note || cat(r.template.cat).name}»? Los registros anteriores se conservan.`)) return;
+      r.active = false; save(); openSheet(recListSheet()); render(); return toast('Ya no se repetirá');
+    }
     if (t.dataset.syncmode) { ui.syncMode = t.dataset.syncmode; $$('[data-syncmode]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
     // Importar estado de cuenta
     if (t.dataset.impi !== undefined && ui.imp) { const it = ui.imp.items[+t.dataset.impi]; it.include = !it.include; return impRedraw(); }
@@ -1380,6 +1490,8 @@
         return toast('Movimiento eliminado', () => { state.tx.splice(k, 0, mv); if (inv) Object.assign(inv, snap); });
       }
       case 'receipt': syncDraft(); return $('#receiptInput').click();
+      case 'recur-toggle': ui.draft.recur = ui.draft.recur ? null : 'monthly'; return redrawTx();
+      case 'rec-list': return openSheet(recListSheet());
       case 'receipt-del': ui.draft.receipt = null; return redrawTx();
       case 'reimb-toggle': ui.draft.reimb = ui.draft.reimb ? null : 'pending'; return redrawTx();
       case 'reimb-done': ui.draft.reimb = ui.draft.reimb === 'done' ? 'pending' : 'done'; return redrawTx();
@@ -1448,14 +1560,30 @@
       const d = ui.draft, amount = parseAmount(d.amount);
       if (!amount) { f.amount.focus(); return toast('Escribe un monto mayor a cero'); }
       const rec = { id: d.id || uid(), type: d.type, cat: d.cat, sub: cat(d.cat).subs ? (d.sub || null) : null, amount, date: d.date || today(), account: d.account, note: d.note.trim(), receipt: d.type === 'expense' ? d.receipt : null, reimb: d.type === 'expense' ? d.reimb : null, created: d.created || Date.now() };
+      // Recurrencia: crear, actualizar o detener
+      rec.recurId = d.recurId || null;
+      state.recurring = state.recurring || [];
+      let recurMsg = '';
+      const existing = rec.recurId && state.recurring.find(r => r.id === rec.recurId);
+      const template = { type: rec.type, cat: rec.cat, sub: rec.sub, amount: rec.amount, account: rec.account, note: rec.note };
+      const day = +rec.date.slice(8);
+      if (d.recur) {
+        if (existing && existing.active) Object.assign(existing, { freq: d.recur, template, day });
+        else {
+          const r = { id: uid(), freq: d.recur, day, template, active: true, next: addFreq(rec.date, d.recur, day) };
+          state.recurring.push(r); rec.recurId = r.id; recurMsg = ` · se repetirá ${freqOf(d.recur).long.toLowerCase()}`;
+        }
+      } else if (existing && existing.active) { existing.active = false; recurMsg = ' · ya no se repetirá'; }
       const i = state.tx.findIndex(x => x.id === rec.id);
       const before = i >= 0 ? state.tx[i] : null;
       if (i >= 0) state.tx[i] = rec; else state.tx.push(rec);
       if (!save()) { if (before) state.tx[i] = before; else state.tx.pop(); return; }
+      runRecurring();   // si la fecha inicial es pasada, registra las repeticiones pendientes
       haptic();
       closeSheet();
       ui.month = rec.date.slice(0, 7);
       render();
+      if (recurMsg) return toast((i >= 0 ? 'Cambios guardados' : rec.type === 'income' ? 'Ingreso agregado' : 'Gasto agregado') + recurMsg);
       // Alerta de presupuesto
       const b = state.budgets[rec.cat];
       if (rec.type === 'expense' && b) {
@@ -1598,6 +1726,8 @@
     state.goals.forEach(g => { r['goal:' + g.id] = { kind: 'goal', data: g }; });
     (state.investments || []).forEach(i => { r['inv:' + i.id] = { kind: 'inv', data: i }; });
     Object.entries(state.budgets).forEach(([k, v]) => { r['budget:' + k] = { kind: 'budget', data: { id: k, amount: v } }; });
+    (state.recurring || []).forEach(x => { r['rec:' + x.id] = { kind: 'rec', data: x }; });
+    (state.debts || []).forEach(x => { r['debt:' + x.id] = { kind: 'debt', data: x }; });
     r['meta:perfil'] = { kind: 'meta', data: { currency: state.settings.currency, name: state.settings.name || '', rules: state.rules || {} } };
     return r;
   };
@@ -1607,6 +1737,8 @@
     if (kind === 'tx') put(state.tx);
     else if (kind === 'goal') put(state.goals);
     else if (kind === 'inv') { state.investments = state.investments || []; put(state.investments); }
+    else if (kind === 'rec') { state.recurring = state.recurring || []; put(state.recurring); }
+    else if (kind === 'debt') { state.debts = state.debts || []; put(state.debts); }
     else if (kind === 'budget') { if (deleted) delete state.budgets[key]; else state.budgets[key] = data.amount; }
     else if (kind === 'meta' && !deleted) { state.settings.currency = data.currency || state.settings.currency; state.settings.name = data.name || ''; state.rules = data.rules || {}; }
   };
@@ -1743,7 +1875,7 @@
   };
   window.addEventListener('online', () => { if (sync) syncNow(); });
   setInterval(() => { if (sync && cryptoKey && document.visibilityState === 'visible') pull(); }, 30000);
-  document.addEventListener('visibilitychange', () => { if (sync && document.visibilityState === 'visible') syncNow(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') return; if (runRecurring() && !sheet.open) render(); if (sync) syncNow(); });
 
   // ---- Interfaz ----
   const syncAgo = () => { if (!syncState.at) return ''; const s = Math.round((Date.now() - syncState.at) / 1000); return s < 10 ? 'justo ahora' : s < 60 ? `hace ${s} s` : `hace ${Math.round(s / 60)} min`; };
@@ -1796,6 +1928,7 @@
   // ---------- Arranque ----------
   // Pide al sistema que no borre los datos de DOMI para liberar espacio
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* no soportado */ }
+  runRecurring();
   route();
   resumeSync();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

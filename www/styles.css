@@ -795,3 +795,4 @@ dialog.sheet:focus, dialog.sheet:focus-visible, .sheet-inner:focus { outline: no
 .top-gear[data-sync="ok"]:not([data-sync=""])::after { background: var(--green); }
 .top-gear[data-sync="syncing"]:not([data-sync=""])::after { background: var(--blue); }
 .top-gear[data-sync="error"]:not([data-sync=""])::after { background: var(--danger); }
+.recur-chips { margin-top: 10px; }
