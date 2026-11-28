@@ -158,7 +158,7 @@
   // ---------- Estado ----------
   const STORE = 'domi.v1';
   const LEGACY_STORE = 'fosforo.v1';
-  const blank = () => ({ tx: [], budgets: {}, goals: [], investments: [], debts: [], receivables: [], recurring: [], settings: { currency: 'MXN', theme: 'dark', name: '' } });
+  const blank = () => ({ tx: [], budgets: {}, goals: [], investments: [], debts: [], receivables: [], recurring: [], household: null, settings: { currency: 'MXN', theme: 'dark', name: '' } });
 
   // Tipos de inversión (paleta restringida de la marca)
   const INV_TYPES = [
@@ -297,6 +297,7 @@
     { id: 'presupuestos', label: 'Presupuestos', icon: 'pie' },
     { id: 'deudas', label: 'Deudas', icon: 'card' },
     { id: 'patrimonio', label: 'Patrimonio', icon: 'vault' },
+    { id: 'hogar', label: 'Hogar', icon: 'house' },
     { id: 'ajustes', label: 'Ajustes', icon: 'gear' }
   ];
 
@@ -400,7 +401,7 @@
       <div class="tx-ico ${t.type}">${icon(s ? s.icon : c.icon)}</div>
       <div class="tx-main">
         <div class="tx-title">${esc(title)}${flags ? `<span class="tx-flags">${flags}</span>` : ''}</div>
-        <div class="tx-meta"><span>${esc(txLabel(t))} · ${esc(t.account)}</span>${status}</div>
+        <div class="tx-meta"><span>${esc(txLabel(t))} · ${t.home ? `Compartido · pagó ${esc(memberById(t.home.paidBy)?.me ? 'tú' : (memberById(t.home.paidBy)?.name || '—'))}` : esc(t.account)}</span>${status}</div>
       </div>
       <div class="tx-amt num ${t.type}">${t.type === 'income' ? '+' : '−'}${money(t.amount)}</div>
     </li>`;
@@ -647,6 +648,7 @@
         </div>
       </section>
       ${debtsHome()}
+      ${homeCard()}
       ${upcomingCard()}
       ${simCard()}
 
@@ -1207,6 +1209,154 @@
       <button type="button" data-sim="save">${icon('trend')}<b>Ahorro</b><small>¿Cuánto tendré?</small></button>
     </div></section>`;
 
+  // =====================================================================
+  // Hogar compartido: quiénes viven, cómo se reparten y quién aporta qué
+  // Cada gasto del hogar guarda el total y quién lo pagó; tu gasto personal es solo tu parte.
+  // =====================================================================
+  const HOME_COLORS = ['#3bff8a', '#3d6bff', '#c9c9c4', '#8aa5ff', '#a6ffcb', '#2fd47a', '#9fb4ff', '#e8e8e4'];
+  const home = () => state.household || null;
+  const meMember = () => (home()?.members || []).find(m => m.me);
+  const memberById = id => (home()?.members || []).find(m => m.id === id);
+  const memberColor = id => { const ms = (ui.homeDraft && ui.homeDraft.members.some(m => m.id === id) ? ui.homeDraft : home())?.members || []; return HOME_COLORS[Math.max(0, ms.findIndex(m => m.id === id)) % HOME_COLORS.length]; };
+  const initials = n => (n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  // Proporción de cada integrante según el modo de reparto
+  const homeShares = () => {
+    const h = home(); if (!h) return {};
+    const ms = h.members, out = {};
+    const weights = ms.map(m => h.mode === 'percent' ? (+m.pct || 0) : h.mode === 'income' ? (+m.income || 0) : 1);
+    const tot = sum(weights) || ms.length;
+    ms.forEach((m, i) => { out[m.id] = (sum(weights) ? weights[i] : 1) / tot; });
+    return out;
+  };
+  const homeTxIn = m => state.tx.filter(t => t.home && t.date.startsWith(m));
+  // Balance del mes: lo que pagó cada quien contra lo que le toca; las liquidaciones ya hechas lo ajustan
+  const homeBalance = (m = ui.month) => {
+    const h = home(); if (!h) return null;
+    const sh = homeShares(), paid = {}, owes = {};
+    h.members.forEach(x => { paid[x.id] = 0; owes[x.id] = 0; });
+    const list = homeTxIn(m);
+    list.forEach(t => {
+      const total = t.home.total;
+      if (paid[t.home.paidBy] !== undefined) paid[t.home.paidBy] += total;
+      h.members.forEach(x => { owes[x.id] += total * (t.home.shares ? (t.home.shares[x.id] || 0) : sh[x.id]); });
+    });
+    (h.settles || []).filter(s => s.date.startsWith(m)).forEach(s => { if (paid[s.from] !== undefined) paid[s.from] += s.amount; if (paid[s.to] !== undefined) paid[s.to] -= s.amount; });
+    const net = {}; h.members.forEach(x => { net[x.id] = Math.round((paid[x.id] - owes[x.id]) * 100) / 100; });
+    // Liquidaciones mínimas: quien debe le paga a quien puso de más
+    const deb = h.members.filter(x => net[x.id] < -0.5).map(x => ({ id: x.id, v: -net[x.id] })).sort((a, b) => b.v - a.v);
+    const cre = h.members.filter(x => net[x.id] > 0.5).map(x => ({ id: x.id, v: net[x.id] })).sort((a, b) => b.v - a.v);
+    const moves = [];
+    let i = 0, j = 0;
+    while (i < deb.length && j < cre.length) {
+      const a = Math.min(deb[i].v, cre[j].v); moves.push({ from: deb[i].id, to: cre[j].id, amount: Math.round(a * 100) / 100 });
+      deb[i].v -= a; cre[j].v -= a; if (deb[i].v < 0.5) i++; if (cre[j].v < 0.5) j++;
+    }
+    return { list, total: sum(list, t => t.home.total), paid, owes, net, moves };
+  };
+  const moveText = (mv, short) => {
+    const me = meMember(), f = memberById(mv.from), to = memberById(mv.to);
+    if (mv.to === me?.id) return `${esc(f.name)} te debe <b>${money(mv.amount, { compact: true })}</b>`;
+    if (mv.from === me?.id) return `Le debes <b>${money(mv.amount, { compact: true })}</b> a ${esc(to.name)}`;
+    return `${esc(f.name)} le debe <b>${money(mv.amount, { compact: true })}</b> a ${esc(to.name)}`;
+  };
+  const avatar = (m, size = '') => `<span class="hm-av ${size}" style="--c:${memberColor(m.id)}">${esc(initials(m.name))}</span>`;
+
+  const homeCard = () => {
+    const h = home();
+    if (!h) return state.tx.length && !state.settings.homeHint ? `<section class="card c-home home-hint"><div class="hh-ico">${icon('house')}</div><div><b>¿Vives con alguien?</b><p>Lleven las cuentas del hogar: quién aporta qué y quién le debe a quién.</p></div>
+      <div class="client-acts"><button class="btn sm green" data-action="home-setup">Configurar hogar</button><button class="btn sm ghost" data-action="home-hint-off">Ahora no</button></div></section>` : '';
+    const b = homeBalance(ui.month), me = meMember();
+    const mine = b.moves.filter(mv => mv.from === me?.id || mv.to === me?.id);
+    const sh = homeShares();
+    return `<section class="card c-home"><div class="card-head"><h2 class="h2">${esc(h.name || 'Hogar')}</h2><a class="link" href="#hogar">Ver hogar</a></div>
+      <div class="hm-row">${h.members.map(m => `<span class="hm-chip">${avatar(m, 'sm')}${esc(m.me ? 'Tú' : m.name)}</span>`).join('')}</div>
+      ${b.total ? `<div class="hm-bar">${h.members.map(m => `<i style="width:${(b.paid[m.id] > 0 ? b.paid[m.id] / Math.max(sum(Object.values(b.paid).filter(v => v > 0)), 1) : 0) * 100}%;background:${memberColor(m.id)}"></i>`).join('')}</div>
+      <p class="hm-sub">Gastos del hogar este mes: <b>${money(b.total, { compact: true })}</b>${me ? ` · tú pusiste ${money(Math.max(b.paid[me.id], 0), { compact: true })} y te toca ${pctFmt(sh[me.id] * 100)}` : ''}</p>` : '<p class="hm-sub">Aún no hay gastos del hogar este mes. Al registrar un gasto, activa «Gasto del hogar».</p>'}
+      ${mine.length ? mine.map(mv => `<div class="alert-row ${mv.to === me?.id ? 'green' : 'blue'}">${icon(mv.to === me?.id ? 'check' : 'house')}<span><b>${moveText(mv)}</b><small>Para quedar parejos este mes</small></span><button class="btn sm ${mv.to === me?.id ? 'green' : ''}" data-settle="${mv.from}:${mv.to}:${mv.amount}">Saldar</button></div>`).join('')
+        : b.total ? `<div class="alert-row green">${icon('check')}<span><b>Están parejos</b><small>Nadie le debe a nadie este mes</small></span></div>` : ''}
+    </section>`;
+  };
+
+  const viewHogar = () => {
+    const h = home();
+    const head = `<div class="page-head"><div><div class="eyebrow">Gastos compartidos</div><h1 class="h1">${esc(h?.name || 'Hogar')}<span>.</span></h1></div>${h ? `<button class="btn green sm" data-action="home-expense">${icon('plus', 2.2)}Gasto del hogar</button>` : ''}</div>`;
+    if (!h) return head + `<div class="card empty"><div class="glyph">${icon('house')}</div><h3>Configura tu hogar</h3><p>Agrega a las personas con las que vives y cómo se reparten los gastos. DOMI te dice quién aporta qué y quién le debe a quién.</p><div class="actions"><button class="btn green" data-action="home-setup">${icon('plus', 2.2)}Configurar hogar</button></div></div>`;
+    const b = homeBalance(ui.month), sh = homeShares(), me = meMember();
+    const modeTxt = { equal: 'Partes iguales', percent: 'Por porcentaje', income: 'Según ingresos' }[h.mode || 'equal'];
+    // Quién aporta qué, por categoría
+    const byCatHome = {};
+    b.list.forEach(t => { const k = (subOf(t) || cat(t.cat)).name; byCatHome[k] = byCatHome[k] || { total: 0, by: {} }; byCatHome[k].total += t.home.total; byCatHome[k].by[t.home.paidBy] = (byCatHome[k].by[t.home.paidBy] || 0) + t.home.total; });
+    const catRows = Object.entries(byCatHome).sort((a, c) => c[1].total - a[1].total);
+    return head + `
+    <section class="card hm-members"><div class="card-head"><h2 class="h2">Quiénes viven aquí</h2><button class="link" data-action="home-setup">Editar</button></div>
+      <ul class="hm-list">${h.members.map(m => `<li>${avatar(m)}<span class="hm-name">${esc(m.name)}${m.me ? ' <small>(tú)</small>' : ''}</span><span class="hm-pct num">${pctFmt(sh[m.id] * 100)}</span></li>`).join('')}</ul>
+      <p class="inv-note">${modeTxt}${h.mode === 'income' ? ': cada quien aporta en proporción a lo que gana' : h.mode === 'percent' ? ': cada quien aporta el porcentaje acordado' : ': todos aportan lo mismo'}.</p></section>
+    <div class="grid two-col" style="margin-top:12px">
+      <section class="card"><div class="card-head"><h2 class="h2">Balance del mes</h2><span class="eyebrow">${esc(monthName(ui.month))}</span></div>
+        ${b.total ? `<ul class="hm-bal">${h.members.map(m => `<li>${avatar(m, 'sm')}<span class="hm-name">${esc(m.me ? 'Tú' : m.name)}</span><span class="hm-paid"><small>Aportó</small><b class="num">${money(Math.max(b.paid[m.id], 0), { compact: true })}</b></span><span class="hm-paid"><small>Le toca</small><b class="num">${money(b.owes[m.id], { compact: true })}</b></span></li>`).join('')}</ul>
+          ${b.moves.length ? b.moves.map(mv => `<div class="alert-row ${mv.to === me?.id ? 'green' : mv.from === me?.id ? 'blue' : ''}">${avatar(memberById(mv.from), 'sm')}<span><b>${moveText(mv)}</b><small>Para quedar parejos</small></span><button class="btn sm ${mv.to === me?.id ? 'green' : ''}" data-settle="${mv.from}:${mv.to}:${mv.amount}">Saldar</button></div>`).join('')
+            : `<div class="alert-row green">${icon('check')}<span><b>Están parejos</b><small>Nadie le debe a nadie este mes</small></span></div>`}`
+          : '<div class="cal-empty">Sin gastos del hogar este mes. Toca «Gasto del hogar» para registrar la renta, el súper o la luz.</div>'}
+      </section>
+      <section class="card"><div class="card-head"><h2 class="h2">Quién aporta qué</h2><span class="eyebrow">${money(b.total, { compact: true })}</span></div>
+        ${catRows.length ? `<ul class="hm-cats">${catRows.map(([k, v]) => `<li><div class="hm-cat-top"><span>${esc(k)}</span><b class="num">${money(v.total, { compact: true })}</b></div>
+          <div class="hm-bar">${h.members.map(m => `<i style="width:${((v.by[m.id] || 0) / v.total) * 100}%;background:${memberColor(m.id)}"></i>`).join('')}</div>
+          <small>${h.members.filter(m => v.by[m.id]).map(m => `${esc(m.me ? 'Tú' : m.name)} ${money(v.by[m.id], { compact: true })}`).join(' · ')}</small></li>`).join('')}</ul>
+          <div class="hm-legend">${h.members.map(m => `<span><i style="background:${memberColor(m.id)}"></i>${esc(m.me ? 'Tú' : m.name)}</span>`).join('')}</div>` : '<div class="cal-empty">Aquí verás cuánto pone cada quien en renta, súper, servicios…</div>'}
+      </section>
+    </div>
+    ${b.list.length ? `<section class="card" style="margin-top:12px"><div class="card-head"><h2 class="h2">Gastos del hogar</h2></div><ul class="tx-list">${sorted(b.list).map(txRow).join('')}</ul></section>` : ''}`;
+  };
+
+  const homeForm = () => {
+    const h = ui.homeDraft;
+    const sh = (() => { const ws = h.members.map(m => h.mode === 'percent' ? (+m.pct || 0) : h.mode === 'income' ? (+m.income || 0) : 1); const t = sum(ws); return ws.map(w => t ? w / t : 0); })();
+    const pctSum = sum(h.members, m => +m.pct || 0);
+    return `${sheetHead(home() ? 'Editar hogar' : 'Configurar hogar')}
+    <form id="homeForm" autocomplete="off">
+      <label><span class="field-label">Nombre del hogar</span><input class="input" name="hname" maxlength="30" placeholder="Ej. Casa, Depa Roma" value="${esc(h.name)}"></label>
+      <span class="field-label">¿Quiénes viven aquí? · ${h.members.length} ${h.members.length === 1 ? 'persona' : 'personas'}</span>
+      <div class="split">${h.members.map((m, k) => `<div class="split-row hm-edit">${avatar({ id: m.id, name: m.name || '?' }, 'sm')}
+        <input class="split-name" data-hmname="${k}" maxlength="24" placeholder="${m.me ? 'Tu nombre' : 'Nombre'}" value="${esc(m.name)}">
+        ${h.mode === 'percent' ? `<span class="hm-in"><input data-hmpct="${k}" inputmode="decimal" value="${m.pct ?? ''}" placeholder="0"><em>%</em></span>` : h.mode === 'income' ? `<span class="hm-in wide"><em>${esc(curSymbol())}</em><input data-hminc="${k}" inputmode="decimal" value="${m.income ?? ''}" placeholder="Ingreso"></span>` : `<span class="pt"><b>${pctFmt(sh[k] * 100)}</b></span>`}
+        ${m.me ? '<span class="hm-you">Tú</span>' : `<button type="button" class="icon-btn" data-hmdel="${k}" aria-label="Quitar">${icon('x')}</button>`}</div>`).join('')}
+        <button type="button" class="add-person" data-action="hm-add">${icon('plus', 2.2)}Agregar persona</button>
+      </div>
+      <span class="field-label">¿Cómo se reparten los gastos?</span>
+      <div class="seg seg3" role="group"><button type="button" data-hmmode="equal" aria-pressed="${h.mode === 'equal'}">Iguales</button><button type="button" data-hmmode="percent" aria-pressed="${h.mode === 'percent'}">Porcentaje</button><button type="button" data-hmmode="income" aria-pressed="${h.mode === 'income'}">Según ingresos</button></div>
+      <p class="inv-note">${h.mode === 'percent' ? (Math.abs(pctSum - 100) < 0.5 ? 'Suma 100%. ✓' : `Los porcentajes suman ${pctSum}%: deben sumar 100%.`) : h.mode === 'income' ? 'Escribe cuánto gana al mes cada quien; el que gana más aporta más. Solo se guarda en tu dispositivo.' : 'Todos aportan lo mismo.'}</p>
+      <div class="sheet-actions">${home() ? `<button type="button" class="btn danger" data-action="home-del" style="flex:0 0 auto;width:52px;padding:0" aria-label="Eliminar hogar">${icon('trash')}</button>` : ''}<button class="btn primary">${home() ? 'Guardar cambios' : 'Crear hogar'}</button></div>
+    </form>`;
+  };
+  const homeDraftSync = () => {
+    const f = $('#homeForm'), h = ui.homeDraft; if (!f || !h) return;
+    h.name = f.hname.value;
+    $$('[data-hmname]').forEach(el => { h.members[+el.dataset.hmname].name = el.value; });
+    $$('[data-hmpct]').forEach(el => { h.members[+el.dataset.hmpct].pct = el.value; });
+    $$('[data-hminc]').forEach(el => { h.members[+el.dataset.hminc].income = el.value; });
+  };
+  const homeRedraw = () => { const b = $('#sheetBody'), st = b.scrollTop; openSheet(homeForm()); b.scrollTop = st; };
+  const openHomeSetup = () => {
+    const h = home();
+    ui.homeDraft = h ? JSON.parse(JSON.stringify(h)) : { name: 'Casa', mode: 'equal', settles: [], members: [{ id: uid(), name: state.settings.name || '', me: true, pct: 50, income: '' }, { id: uid(), name: '', pct: 50, income: '' }] };
+    openSheet(homeForm());
+  };
+  const settleSheet = (from, to, amount) => {
+    const f = memberById(from), t = memberById(to), me = meMember();
+    return `${sheetHead('Saldar cuentas')}
+    <form id="settleForm" data-from="${from}" data-to="${to}" autocomplete="off">
+      <div class="settle-who">${avatar(f)}<span>${icon('trend')}</span>${avatar(t)}</div>
+      <p class="lede" style="text-align:center;margin:8px 0 0">${from === me?.id ? `Tú le pagas a ${esc(t.name)}` : to === me?.id ? `${esc(f.name)} te paga` : `${esc(f.name)} le paga a ${esc(t.name)}`}</p>
+      <label class="amount-field"><span class="cur">${esc(curSymbol())}</span><span class="sr-only">Monto</span><input name="amount" inputmode="decimal" value="${amount}" required></label>
+      <div class="row2">
+        <label><span class="field-label">Cuenta</span><select class="input" name="account">${ACCOUNTS.map(a => `<option ${a === 'Transferencia' ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
+        <label><span class="field-label">Fecha</span><input class="input" type="date" name="date" value="${today()}" required></label>
+      </div>
+      <div class="toggle-row note-row"><span><b>No es gasto ni ingreso</b><small>Solo emparejan lo que cada quien puso. Tus gastos del hogar ya cuentan solo tu parte.</small></span></div>
+      <div class="sheet-actions"><button class="btn green">Marcar como saldado</button></div>
+    </form>`;
+  };
+
   const viewPatrimonio = () => {
     const st = invStats(), saved = goalsSaved(), total = saved + st.value;
     const { int, cents } = moneySplit(total);
@@ -1242,6 +1392,7 @@
       ${syncCard()}
       <section class="card"><h2 class="h2" style="margin-bottom:6px">Perfil</h2><div class="set-list">
         <div class="set-row"><div><div class="label">Tu nombre</div><div class="hint">Para saludarte en el inicio</div></div><input id="setName" value="${esc(s.name)}" placeholder="Opcional" maxlength="24"></div>
+        <div class="set-row"><div><div class="label">Hogar compartido</div><div class="hint">${state.household ? `${esc(state.household.name)} · ${state.household.members.length} personas` : 'Con quién vives y cómo se reparten'}</div></div><button class="btn sm" data-action="home-setup">${state.household ? 'Editar' : 'Configurar'}</button></div>
         <div class="set-row"><div><div class="label">Moneda</div><div class="hint">Formato de todos los montos</div></div><select id="setCur">${Object.keys(CURRENCIES).map(c => `<option ${c === s.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
         <div class="set-row"><div><div class="label">Modo oscuro</div><div class="hint">Negro profundo o blanco editorial</div></div><button class="switch" role="switch" aria-checked="${s.theme === 'dark'}" data-action="theme" aria-label="Modo oscuro"></button></div>
         <div class="set-row"><div><div class="label">App DOMI</div><div class="hint">${standalone ? 'Instalada en este dispositivo' : platform === 'ios' ? 'iPhone · Safari → Compartir → Agregar a inicio' : platform === 'android' ? 'Android · descarga la app o instálala desde Chrome' : 'Disponible para Mac, Windows, Android e iPhone'}</div></div>${standalone ? '<span class="tag">INSTALADA</span>' : '<button class="btn sm" data-action="install-show">Cómo instalar</button>'}</div>
@@ -1259,7 +1410,7 @@
     <p class="lede" style="text-align:center;margin-top:28px;font-size:12px">DOMI · local-first · tus datos no salen de este dispositivo</p>`;
   };
 
-  const VIEWS = { inicio: viewInicio, movimientos: viewMovimientos, presupuestos: viewPresupuestos, deudas: viewDeudas, patrimonio: viewPatrimonio, ajustes: viewAjustes };
+  const VIEWS = { inicio: viewInicio, movimientos: viewMovimientos, presupuestos: viewPresupuestos, deudas: viewDeudas, patrimonio: viewPatrimonio, hogar: viewHogar, ajustes: viewAjustes };
 
   const render = () => {
     renderNav();
@@ -1313,7 +1464,8 @@
         <span class="switch" aria-hidden="true" aria-checked="${!!d.reimb}"></span></button>
       ${d.reimb ? `<button type="button" class="toggle-row" role="switch" aria-checked="${d.reimb === 'done'}" data-action="reimb-done"><span><b>Ya me lo pagaron</b><small>Marca como reembolsado</small></span>
         <span class="switch" aria-hidden="true" aria-checked="${d.reimb === 'done'}"></span></button>` : ''}` : ''}
-      ${splitBlock(d)}
+      ${homeBlock(d)}
+      ${d.home ? '' : splitBlock(d)}
       <button type="button" class="toggle-row" role="switch" aria-checked="${!!d.recur}" data-action="recur-toggle"><span><b>Se repite</b><small>${d.recur ? 'DOMI lo registrará solo en cada fecha' : 'Renta, Netflix, colegiatura, nómina…'}</small></span>
         <span class="switch" aria-hidden="true" aria-checked="${!!d.recur}"></span></button>
       ${d.recur ? `<div class="sub-chips recur-chips" role="group" aria-label="Frecuencia">${FREQS.map(f => `<button type="button" class="sub-chip" data-freq="${f.id}" aria-pressed="${d.recur === f.id}">${f.name}</button>`).join('')}</div>
@@ -1323,6 +1475,23 @@
         <button type="submit" class="btn ${d.type === 'income' ? 'green' : 'primary'}">${d.id ? 'Guardar cambios' : d.type === 'income' ? 'Agregar ingreso' : 'Agregar gasto'}</button>
       </div>
     </form>`;
+  };
+
+  // ---------- Gasto del hogar ----------
+  const homeSummary = d => {
+    const sh = homeShares(), me = meMember(), total = parseAmount(d.amount);
+    if (!total) return '<p>Escribe el monto total; DOMI calcula la parte de cada quien.</p>';
+    return `<div><div class="eyebrow">Total del hogar</div><b class="num">${mny(total)}</b></div><div><div class="eyebrow">Tu parte · ${pctFmt((sh[me?.id] || 0) * 100)}</div><b class="num">${mny(Math.round(total * (sh[me?.id] || 0) * 100) / 100)}</b></div>
+      <p>${home().members.filter(m => !m.me).map(m => `${esc(m.name)} ${mny(Math.round(total * (sh[m.id] || 0) * 100) / 100)}`).join(' · ')}. Solo tu parte cuenta como tu gasto; el balance está en Hogar.</p>`;
+  };
+  const homeBlock = d => {
+    if (d.type !== 'expense' || !home()) return '';
+    const toggle = `<button type="button" class="toggle-row" role="switch" aria-checked="${!!d.home}" data-action="home-toggle"><span><b>Gasto del hogar</b><small>${esc(home().name || 'Hogar')} · se reparte entre ${home().members.length}</small></span><span class="switch" aria-hidden="true" aria-checked="${!!d.home}"></span></button>`;
+    if (!d.home) return toggle;
+    return `${toggle}
+      <span class="field-label">¿Quién pagó?</span>
+      <div class="sub-chips">${home().members.map(m => `<button type="button" class="sub-chip hm-pick" data-homepaid="${m.id}" aria-pressed="${d.home.paidBy === m.id}">${avatar(m, 'xs')}${esc(m.me ? 'Yo' : m.name)}</button>`).join('')}</div>
+      <div class="split-sum" id="homeSum">${homeSummary(d)}</div>`;
   };
 
   // ---------- Dividir gasto ----------
@@ -1392,6 +1561,7 @@
     if (t && ['debt', 'collect', 'lend'].includes(t.type)) return openSheet(moveSheet(t));
     const defDate = ui.month === ym(new Date()) ? today() : `${ui.month}-01`;
     ui.draft = t ? { ...t } : { type: 'expense', amount: '', cat: 'comida', date: defDate, account: 'Débito', note: '', receipt: null, reimb: null };
+    if (t && t.home) { ui.draft.amount = t.home.total; ui.draft.home = { ...t.home }; }
     const r = t && t.recurId && (state.recurring || []).find(x => x.id === t.recurId && x.active);
     ui.draft.recur = r ? r.freq : null;
     openSheet(txForm());
@@ -1835,7 +2005,18 @@
     ];
     const cetes = investments[0];
     tx.push({ id: uid(), type: 'invest', dir: 'in', invId: cetes.id, amount: 3000, account: 'Débito', date: iso(new Date(now.getFullYear(), now.getMonth(), Math.max(1, now.getDate() - 2), 12)), note: cetes.name, created: Date.now() });
-    state = { ...state, tx, investments, budgets: { comida: 6000, servicios: 2200, gasolina: 3200, transporte: 1500, compras: 2500, ocio: 1500, suscripciones: 1400 },
+    // Hogar de ejemplo: tú y tu mamá, 60/40. Renta la pagas tú; luz, agua y algunos súper los paga ella.
+    const hh = { name: 'Casa', mode: 'percent', settles: [], members: [{ id: 'hm-yo', name: state.settings.name || 'Yo', me: true, pct: 60, income: 0 }, { id: 'hm-mama', name: 'Mamá', pct: 40, income: 0 }] };
+    const hsh = { 'hm-yo': 0.6, 'hm-mama': 0.4 };
+    tx.forEach(t => {
+      const byMe = t.note === 'Renta' || (t.note === 'Súper' && t.date.slice(8) % 2 === 0) || t.sub === 'internet';
+      const byMom = t.sub === 'luz' || t.sub === 'agua' || t.sub === 'gas' || (t.note === 'Súper' && t.date.slice(8) % 2 === 1);
+      if (!byMe && !byMom) return;
+      t.home = { total: t.amount, paidBy: byMe ? 'hm-yo' : 'hm-mama', shares: hsh };
+      if (byMom) t.note = t.note || ({ luz: 'Recibo de luz', agua: 'Recibo de agua', gas: 'Gas' }[t.sub] || '');
+      t.amount = Math.round(t.amount * 0.6 * 100) / 100;
+    });
+    state = { ...state, household: hh, tx, investments, budgets: { comida: 6000, servicios: 2200, gasolina: 3200, transporte: 1500, compras: 2500, ocio: 1500, suscripciones: 1400 },
       goals: [
         { id: uid(), name: 'Fondo de emergencia', target: 60000, saved: 38500, deadline: `${now.getFullYear() + 1}-03-01` },
         { id: uid(), name: 'Viaje a Japón', target: 45000, saved: 12800, deadline: `${now.getFullYear() + 1}-10-01` },
@@ -1885,7 +2066,7 @@
   window.addEventListener('scroll', () => $('#topbar').classList.toggle('scrolled', scrollY > 4), { passive: true });
 
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-action],[data-sim],[data-simset],[data-simgoal],[data-dtab],[data-mtab],[data-debt],[data-debttype],[data-debtop],[data-recv],[data-recvkind],[data-collect],[data-remind],[data-ics-debt],[data-ics-rec],[data-splitpayer],[data-splitp],[data-splitinc],[data-splitdec],[data-syncmode],[data-freq],[data-recstop],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
+    const t = e.target.closest('[data-action],[data-settle],[data-hmdel],[data-hmmode],[data-homepaid],[data-sim],[data-simset],[data-simgoal],[data-dtab],[data-mtab],[data-debt],[data-debttype],[data-debtop],[data-recv],[data-recvkind],[data-collect],[data-remind],[data-ics-debt],[data-ics-rec],[data-splitpayer],[data-splitp],[data-splitinc],[data-splitdec],[data-syncmode],[data-freq],[data-recstop],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
     if (!t) return;
     const a = t.dataset.action;
 
@@ -1910,6 +2091,11 @@
     if (t.dataset.goalEdit) return openSheet(goalForm(t.dataset.goalEdit));
     if (t.dataset.goalDel) { const i = state.goals.findIndex(g => g.id === t.dataset.goalDel); const [g] = state.goals.splice(i, 1); save(); render(); return toast('Meta eliminada', () => { state.goals.splice(i, 0, g); }); }
     if (t.dataset.op) { $$('[data-op]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
+    // Hogar compartido
+    if (t.dataset.settle) { const [fr, to, am] = t.dataset.settle.split(':'); return openSheet(settleSheet(fr, to, +am)); }
+    if (t.dataset.hmdel !== undefined) { homeDraftSync(); ui.homeDraft.members.splice(+t.dataset.hmdel, 1); return homeRedraw(); }
+    if (t.dataset.hmmode) { homeDraftSync(); ui.homeDraft.mode = t.dataset.hmmode; return homeRedraw(); }
+    if (t.dataset.homepaid && ui.draft && ui.draft.home) { ui.draft.home.paidBy = t.dataset.homepaid; $$('[data-homepaid]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
     // Patrimonio
     if (t.dataset.pat) { ui.pat = t.dataset.pat; return render(); }
     // Simuladores
@@ -2038,10 +2224,21 @@
       case 'move-del': {
         const k = state.tx.findIndex(x => x.id === t.dataset.id); if (k < 0) return;
         const mv = state.tx[k];
+        if (mv.settleId && state.household) state.household.settles = (state.household.settles || []).filter(x => x.id !== mv.settleId);
         if (mv.type === 'debt') { const d = (state.debts || []).find(x => x.id === mv.debtId); if (d) d.balance = Math.round((d.balance + mv.amount) * 100) / 100; }
         if (mv.type === 'collect' || (mv.type === 'income' && mv.recvId)) { const r = (state.receivables || []).find(x => x.id === mv.recvId); if (r) r.paid = Math.max(0, Math.round(((r.paid || 0) - mv.amount) * 100) / 100); }
         state.tx.splice(k, 1); save(); closeSheet(); render();
         return toast('Movimiento eliminado');
+      }
+      case 'home-setup': return openHomeSetup();
+      case 'home-hint-off': state.settings.homeHint = true; save(); return render();
+      case 'home-expense': openTx(); ui.draft.cat = 'hogar'; ui.draft.home = { paidBy: meMember()?.id }; return redrawTx();
+      case 'home-toggle': syncDraft(); ui.draft.home = ui.draft.home ? null : { paidBy: meMember()?.id }; if (ui.draft.home) ui.draft.split = null; return redrawTx();
+      case 'hm-add': homeDraftSync(); ui.homeDraft.members.push({ id: uid(), name: '', pct: '', income: '' }); homeRedraw(); setTimeout(() => $$('[data-hmname]').at(-1)?.focus(), 50); return;
+      case 'home-del': {
+        if (!confirm('¿Eliminar el hogar? Tus gastos se conservan con tu parte.')) return;
+        const prev = state.household; state.household = null; save(); closeSheet(); location.hash = 'hogar'; render();
+        return toast('Hogar eliminado', () => { state.household = prev; });
       }
       case 'split-toggle': syncDraft(); ui.draft.split = ui.draft.split ? null : { payer: 'me', other: '', me: 1, people: [{ name: '', shares: 1, on: true }] }; return redrawTx();
       case 'split-add': syncDraft(); ui.draft.split.people.push({ name: '', shares: 1, on: true }); redrawTx(); setTimeout(() => { const ins = $$('[data-splitname]'); ins.at(-1)?.focus(); }, 50); return;
@@ -2071,6 +2268,7 @@
   document.addEventListener('input', e => {
     if (e.target.matches('[data-simfield]')) { simState()[e.target.dataset.simfield] = e.target.value; if (e.target.dataset.simfield === 'years') { const l = e.target.previousElementSibling; if (l) l.innerHTML = 'Plazo: <b>' + e.target.value + (e.target.value === '1' ? ' año' : ' años') + '</b>'; } refreshSim(); }
     if (e.target.matches('.amount-field input')) fitAmount(e.target);
+    if (ui.draft && ui.draft.home && e.target.matches('#txForm [name=amount]')) { const hs = $('#homeSum'); if (hs) { ui.draft.amount = e.target.value; hs.innerHTML = homeSummary(ui.draft); } }
     if (ui.draft && ui.draft.split && (e.target.matches('#txForm [name=amount]') || e.target.matches('[data-splitname]') || e.target.name === 'splitOther')) refreshSplit();
     if (e.target.id === 'q') { ui.q = e.target.value; ui._focusQ = true; render(); }
   });
@@ -2114,6 +2312,37 @@
   document.addEventListener('submit', e => {
     e.preventDefault();
     const f = e.target;
+    if (f.id === 'homeForm') {
+      homeDraftSync();
+      const h = ui.homeDraft;
+      h.name = (h.name || '').trim() || 'Casa';
+      h.members.forEach(m => { m.name = (m.name || '').trim(); });
+      if (h.members.length < 2) return toast('Agrega al menos a otra persona');
+      const empty = h.members.findIndex(m => !m.name);
+      if (empty >= 0) { $(`[data-hmname="${empty}"]`)?.focus(); return toast('Escribe el nombre de cada persona'); }
+      if (h.mode === 'percent' && Math.abs(sum(h.members, m => +m.pct || 0) - 100) >= 0.5) return toast('Los porcentajes deben sumar 100%');
+      if (h.mode === 'income' && !sum(h.members, m => +m.income || 0)) return toast('Escribe el ingreso de cada quien');
+      h.members.forEach(m => { m.pct = +m.pct || 0; m.income = +m.income || 0; });
+      const isNew = !state.household;
+      state.household = h; ui.homeDraft = null;
+      const me = h.members.find(m => m.me); if (me && !state.settings.name) state.settings.name = me.name;
+      save(); closeSheet();
+      if (location.hash !== '#hogar') location.hash = 'hogar'; else render();
+      return toast(isNew ? `Hogar creado · ${h.members.length} personas` : 'Hogar actualizado');
+    }
+    if (f.id === 'settleForm') {
+      const amount = parseAmount(f.amount.value);
+      if (!amount) return toast('Escribe el monto');
+      const h = state.household, me = meMember(), from = f.dataset.from, to = f.dataset.to;
+      const st = { id: uid(), date: f.date.value || today(), from, to, amount };
+      h.settles = h.settles || []; h.settles.push(st);
+      if (to === me?.id || from === me?.id) {
+        const other = memberById(to === me.id ? from : to);
+        state.tx.push({ id: uid(), type: to === me.id ? 'collect' : 'debt', counted: true, settleId: st.id, amount, date: st.date, account: f.account.value, note: `${other.name} · ${h.name || 'Hogar'}`, created: Date.now() });
+      }
+      save(); closeSheet(); render(); haptic();
+      return toast('Cuentas saldadas');
+    }
     if (f.id === 'txForm') {
       syncDraft();
       const d = ui.draft, amount = parseAmount(d.amount);
@@ -2121,8 +2350,15 @@
       const rec = { id: d.id || uid(), type: d.type, cat: d.cat, sub: cat(d.cat).subs ? (d.sub || null) : null, amount, date: d.date || today(), account: d.account, note: d.note.trim(), receipt: d.type === 'expense' ? d.receipt : null, reimb: d.type === 'expense' ? d.reimb : null, created: d.created || Date.now() };
       // Gasto dividido: solo tu parte es gasto; lo demás pasa a «Me deben» (o a «Debo» si pagó otra persona)
       let splitMsg = '';
-      if (d.id && d.split) rec.split = d.split;
-      if (!d.id && d.type === 'expense' && d.split) {
+      if (d.type === 'expense' && d.home && home()) {
+        const sh = homeShares(), me = meMember();
+        if (!memberById(d.home.paidBy)) return toast('Elige quién pagó');
+        rec.home = { total: amount, paidBy: d.home.paidBy, shares: sh };
+        rec.amount = Math.round(amount * (sh[me?.id] || 0) * 100) / 100;
+        splitMsg = ` · tu parte ${mny(rec.amount)}`;
+      }
+      if (d.id && d.split && !rec.home) rec.split = d.split;
+      if (!d.id && d.type === 'expense' && d.split && !rec.home) {
         const c = splitCalc(d), named = c.others.filter(o => o.name);
         if (c.payer === 'other' && !c.other) { f.splitOther && f.splitOther.focus(); return toast('Escribe quién pagó'); }
         if (c.others.length && named.length < c.others.length) return toast('Escribe el nombre de cada persona');
@@ -2144,7 +2380,7 @@
       state.recurring = state.recurring || [];
       let recurMsg = '';
       const existing = rec.recurId && state.recurring.find(r => r.id === rec.recurId);
-      const template = { type: rec.type, cat: rec.cat, sub: rec.sub, amount: rec.amount, account: rec.account, note: rec.note };
+      const template = { type: rec.type, cat: rec.cat, sub: rec.sub, amount: rec.amount, account: rec.account, note: rec.note, ...(rec.home ? { home: rec.home } : {}) };
       const day = +rec.date.slice(8);
       if (d.recur) {
         if (existing && existing.active) Object.assign(existing, { freq: d.recur, template, day });
@@ -2361,6 +2597,7 @@
     (state.recurring || []).forEach(x => { r['rec:' + x.id] = { kind: 'rec', data: x }; });
     (state.debts || []).forEach(x => { r['debt:' + x.id] = { kind: 'debt', data: x }; });
     (state.receivables || []).forEach(x => { r['recv:' + x.id] = { kind: 'recv', data: x }; });
+    if (state.household) r['meta:home'] = { kind: 'home', data: state.household };
     r['meta:perfil'] = { kind: 'meta', data: { currency: state.settings.currency, name: state.settings.name || '', rules: state.rules || {} } };
     return r;
   };
@@ -2374,6 +2611,7 @@
     else if (kind === 'debt') { state.debts = state.debts || []; put(state.debts); }
     else if (kind === 'recv') { state.receivables = state.receivables || []; put(state.receivables); }
     else if (kind === 'budget') { if (deleted) delete state.budgets[key]; else state.budgets[key] = data.amount; }
+    else if (kind === 'home') state.household = deleted ? null : data;
     else if (kind === 'meta' && !deleted) { state.settings.currency = data.currency || state.settings.currency; state.settings.name = data.name || ''; state.rules = data.rules || {}; }
   };
 
