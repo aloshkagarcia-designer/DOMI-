@@ -39,6 +39,11 @@ La página detecta el dispositivo y ofrece la descarga correcta.
 - **Servicios y suscripciones detallados**: al elegir Servicios aparecen Luz, Agua, Gas, Internet, Celular, TV/Cable y Mantenimiento; en Suscripciones, Streaming, Música, Gimnasio, Apps, Nube y Videojuegos. Los límites muestran el desglose de cada uno.
 - **Recibos y reembolsos**: foto del ticket y gastos de trabajo *Por reembolsar → Reembolsado*.
 - **Importar estado de cuenta (CSV)**: lee el archivo de cualquier banco, detecta columnas, fechas y montos, categoriza solo (CFE, Telcel, Netflix, Uber, OXXO…), aprende tus correcciones, marca duplicados y excluye pagos a tarjeta.
+- **Deudas y cobros**: en Inicio ves cuánto debes y cuánto te deben, con alertas de facturas vencidas y del próximo pago. Pestaña Deudas con **Debo** (tarjetas, préstamos, auto, MSI, personas: saldo, tasa, meses para liquidar y prioridad) y **Me deben** (clientes con folio y fecha límite; personas). Abonos y cobros no inflan tus gastos; el cobro a un cliente sí cuenta como ingreso.
+- **Dividir gastos**: elige entre quiénes y cuántas partes; solo tu parte es gasto y el resto pasa a «Me deben» (o a «Debo» si pagó otra persona).
+- **Pagos recurrentes**: «Se repite» (semanal, quincenal, mensual, bimestral, anual); DOMI los registra solos y los muestra en «Próximos pagos».
+- **Recordatorios en tu calendario**: agrega tus pagos al calendario del teléfono con aviso a las 9:00 am del día anterior.
+- **Categorías**: incluye Gasolina, Cuidado personal, Mascotas y Educación (Personal / Hijos).
 - **Calendario de gastos**: cada día se pinta según cuánto gastaste; toca un día para ver sus movimientos. Incluye día más caro, días sin gastar y promedio diario.
 - **Límites** por categoría con alertas al 80% y 100%.
 - **Patrimonio**: metas de ahorro e inversiones (CETES, fondos, acciones/ETF, AFORE, cripto, bienes raíces) con rendimiento, distribución y evolución. Aportar a una inversión no cuenta como gasto.

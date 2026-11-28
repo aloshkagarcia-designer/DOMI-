@@ -796,3 +796,98 @@ dialog.sheet:focus, dialog.sheet:focus-visible, .sheet-inner:focus { outline: no
 .top-gear[data-sync="syncing"]:not([data-sync=""])::after { background: var(--blue); }
 .top-gear[data-sync="error"]:not([data-sync=""])::after { background: var(--danger); }
 .recur-chips { margin-top: 10px; }
+
+/* ---------- Deudas y cobros ---------- */
+.c-debts { min-width: 0; }
+.debt-home .dh-two { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border-radius: 16px; overflow: hidden; }
+.debt-home .dh-two > a { background: var(--surface-2); padding: 12px 14px; min-width: 0; }
+.debt-home .dh-two .v { font-family: var(--font-display); font-weight: 700; font-size: 24px; letter-spacing: -.045em; margin-top: 4px; white-space: nowrap; }
+.debt-home .dh-two .v.pos { color: var(--green-text); }
+.debt-home .dh-two small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+.alert-row { display: grid; grid-template-columns: 36px 1fr auto; gap: 12px; align-items: center; margin-top: 10px; padding: 12px; border-radius: 16px; }
+.alert-row > svg { width: 22px; height: 22px; justify-self: center; }
+.alert-row b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alert-row span { min-width: 0; }
+.alert-row small { color: var(--muted); font-size: 12px; }
+.alert-row.red { background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); }
+.alert-row.red > svg { color: var(--danger); }
+.alert-row.blue { background: var(--blue-soft); border: 1px solid color-mix(in srgb, var(--blue) 30%, transparent); }
+.alert-row.blue > svg { color: var(--blue-text); }
+.debt-empty { display: grid; gap: 12px; }
+.debt-empty b { font-family: var(--font-display); font-size: 16px; letter-spacing: -.02em; }
+.debt-empty p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.seg-top { margin-bottom: 10px; }
+.seg-sub { display: inline-grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line-strong); border-radius: 999px; padding: 3px; gap: 3px; margin-bottom: 14px; }
+.seg-sub button { height: 32px; padding: 0 16px; border-radius: 999px; font-size: 13px; font-weight: 650; color: var(--muted); }
+.seg-sub button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+.debt-card { display: grid; gap: 12px; cursor: pointer; }
+.debt-card .goal-top { align-items: flex-start; gap: 8px; }
+.debt-card .dc-id { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.debt-card .dc-id > div:last-child { min-width: 0; }
+.debt-card .goal-name { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.debt-card .goal-amt { font-size: 26px; }
+.debt-card .tag { flex: none; }
+.debt-card.done { opacity: .6; }
+.client { display: grid; gap: 10px; }
+.client-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; cursor: pointer; }
+.client-name { font-family: var(--font-display); font-weight: 650; font-size: 16px; letter-spacing: -.02em; }
+.client-amt { font-family: var(--font-display); font-weight: 700; font-size: 24px; letter-spacing: -.045em; }
+.client-amt .of { color: var(--muted); font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+.client-acts { display: flex; gap: 8px; }
+.client-acts .btn { flex: 1; }
+.client.overdue { border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+.tag.soon { background: rgba(255, 190, 70, .12); color: #e0a030; }
+.paid-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; padding: 12px 16px; border-radius: 16px; background: var(--surface); border: 1px dashed var(--line-strong); color: var(--muted); font-size: 13px; }
+.paid-row b { color: var(--green-text); white-space: nowrap; }
+/* Dividir gasto */
+.split { display: grid; gap: 8px; margin-top: 2px; }
+.split-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 10px 8px 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.split-row.off { opacity: .5; }
+.split-row .imp-check { margin: 0; }
+.split-row .nm { font-weight: 600; font-size: 14.5px; }
+.split-name { min-width: 0; width: 100%; border: 0; background: none; outline: none; font-weight: 600; font-size: 16px; padding: 6px 0; }
+.split-name::placeholder { color: var(--faint); font-weight: 500; }
+.split-row .pt { text-align: right; font-size: 11.5px; color: var(--muted); line-height: 1.2; white-space: nowrap; }
+.split-row .pt b { display: block; color: var(--text); font-size: 13.5px; font-family: var(--font-display); }
+.stepper { display: inline-flex; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+.stepper button { width: 32px; height: 32px; display: grid; place-items: center; color: var(--text-2); font-weight: 600; font-size: 16px; }
+.stepper button + button { border-left: 1px solid var(--line); }
+.add-person { display: flex; align-items: center; gap: 8px; padding: 12px; border-radius: 14px; border: 1px dashed var(--line-strong); color: var(--blue-text); font-weight: 600; font-size: 14px; text-align: left; }
+.add-person svg { width: 16px; height: 16px; }
+.split-sum { margin-top: 10px; padding: 14px; border-radius: 16px; background: var(--green-soft); border: 1px solid color-mix(in srgb, var(--green) 35%, transparent); display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.split-sum .eyebrow { font-size: 10px; }
+.split-sum b { display: block; font-family: var(--font-display); font-size: 20px; letter-spacing: -.04em; margin-top: 3px; }
+.split-sum b.pos { color: var(--green-text); }
+.split-sum p { grid-column: 1 / -1; margin: 0; color: var(--text-2); font-size: 12.5px; }
+/* Próximos pagos */
+.up-total { display: flex; justify-content: space-between; align-items: baseline; margin: -6px 0 6px; }
+.up-total b { font-family: var(--font-display); font-size: 18px; letter-spacing: -.03em; }
+.up-list { list-style: none; margin: 0; padding: 0; }
+.up-list li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.up-list li:first-child { border-top: 0; }
+.up-date { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--surface-2); font-size: 10px; text-transform: uppercase; color: var(--muted); line-height: 1; letter-spacing: .05em; }
+.up-date b { font-family: var(--font-display); font-size: 17px; color: var(--text); letter-spacing: -.02em; }
+.up-name { display: block; font-weight: 600; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.up-meta { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.up-meta svg { width: 13px; height: 13px; flex: none; }
+.up-amt { font-family: var(--font-display); font-weight: 650; }
+/* Calendario del teléfono */
+.cal-add { display: grid; grid-template-columns: 40px 1fr; gap: 12px; align-items: center; width: 100%; text-align: left; margin: 12px 0 4px; padding: 12px; border-radius: 16px; background: var(--blue-soft); border: 1px solid color-mix(in srgb, var(--blue) 30%, transparent); }
+.cal-add > svg { width: 22px; height: 22px; color: var(--blue-text); justify-self: center; }
+.cal-add b { display: block; font-size: 14px; }
+.cal-add small { color: var(--muted); font-size: 12px; }
+.rec-row { grid-template-columns: 42px 1fr auto; }
+@media (min-width: 1000px) {
+  .dash > .c-debts { grid-column: span 7; }
+  .dash > .c-upcoming { grid-column: span 5; }
+  .dash > .c-debts:only-of-type { grid-column: span 12; }
+}
+@media (min-width: 1000px) {
+  .dash > * { order: 5; }
+  .dash > .hero { order: 0; }
+  .dash > .insights { order: 1; }
+  .dash > .c-debts { order: 2; }
+  .dash > .c-upcoming { order: 3; }
+}
+.summary-row strong { word-spacing: .12em; }
+@media (min-width: 1000px) { .dash > .c-debts, .dash > .c-upcoming { align-self: start; } }

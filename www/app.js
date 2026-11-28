@@ -43,6 +43,8 @@
     card: 'M3 6h18v12H3zM3 10h18M7 15h4',
     calendarDue: 'M4 6h16v15H4zM4 10h16M8 3v4M16 3v4M12 13.5v3l2 1.5',
     check: 'M5 12.5l4.5 4.5L19 7.5',
+    alert: 'M12 3 2 20h20zM12 10v4M12 17h.01',
+    bell: 'M6 16v-5a6 6 0 1 1 12 0v5l2 2H4zM10 21h4',
     calendar: 'M4 6h16v15H4zM4 10h16M8 3v4M16 3v4',
     x: 'M18 6 6 18M6 6l12 12',
     search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',
@@ -145,6 +147,9 @@
   const subOf = t => { const c = cat(t.cat); return (c.subs && t.sub && c.subs.find(s => s.id === t.sub)) || null; };
   const txLabel = t => {
     if (t.type === 'invest') { const i = (state.investments || []).find(x => x.id === t.invId); return `${t.dir === 'out' ? 'Retiro' : 'Aportación'} · Patrimonio · ${i ? i.name : t.note || ''}`; }
+    if (t.type === 'debt') return `Pago de deuda · ${t.note || ''}`;
+    if (t.type === 'collect') return `Cobro · ${t.note || ''}`;
+    if (t.type === 'lend') return `Préstamo · ${t.note || ''}`;
     const s = subOf(t); return s ? `${s.name} · ${cat(t.cat).name}` : cat(t.cat).name;
   };
   const ACCOUNTS = ['Débito', 'Crédito', 'Efectivo', 'Transferencia'];
@@ -153,7 +158,7 @@
   // ---------- Estado ----------
   const STORE = 'domi.v1';
   const LEGACY_STORE = 'fosforo.v1';
-  const blank = () => ({ tx: [], budgets: {}, goals: [], investments: [], settings: { currency: 'MXN', theme: 'dark', name: '' } });
+  const blank = () => ({ tx: [], budgets: {}, goals: [], investments: [], debts: [], receivables: [], recurring: [], settings: { currency: 'MXN', theme: 'dark', name: '' } });
 
   // Tipos de inversión (paleta restringida de la marca)
   const INV_TYPES = [
@@ -218,12 +223,57 @@
   const inMonth = (m = ui.month) => state.tx.filter(t => t.date.startsWith(m));
   // Signo de cada movimiento sobre tu dinero disponible.
   // Aportar a una inversión resta del balance, pero NO es gasto; retirar lo regresa.
-  const signed = t => t.type === 'income' ? t.amount : t.type === 'invest' ? (t.dir === 'out' ? t.amount : -t.amount) : -t.amount;
+  // Pagar una deuda o prestarle a alguien resta; cobrar regresa. Ninguno es gasto ni ingreso.
+  // "counted": su efecto ya se contó en otro movimiento (p. ej. un gasto dividido) y no se resta dos veces.
+  const signed = t => {
+    if (t.type === 'income') return t.amount;
+    if (t.type === 'invest') return t.dir === 'out' ? t.amount : -t.amount;
+    if (t.type === 'debt') return t.counted ? 0 : -t.amount;
+    if (t.type === 'collect') return t.counted ? 0 : t.amount;
+    return -t.amount;   // gasto o préstamo
+  };
   const totals = list => {
     const inc = sum(list.filter(t => t.type === 'income'), t => t.amount);
     const exp = sum(list.filter(t => t.type === 'expense'), t => t.amount);
     const inv = sum(list.filter(t => t.type === 'invest'), t => t.dir === 'out' ? -t.amount : t.amount);
-    return { inc, exp, inv, bal: inc - exp - inv };
+    return { inc, exp, inv, bal: sum(list, signed) };
+  };
+  // Deudas (lo que debes) y cuentas por cobrar (lo que te deben)
+  const DEBT_TYPES = [
+    { id: 'tarjeta', name: 'Tarjeta', icon: 'card' },
+    { id: 'prestamo', name: 'Préstamo', icon: 'vault' },
+    { id: 'auto', name: 'Auto', icon: 'car' },
+    { id: 'hipoteca', name: 'Hipoteca', icon: 'house' },
+    { id: 'msi', name: 'Meses sin intereses', icon: 'bag' },
+    { id: 'persona', name: 'Persona', icon: 'person' },
+    { id: 'otra-deuda', name: 'Otra', icon: 'dots' }
+  ];
+  const debtType = id => DEBT_TYPES.find(t => t.id === id) || DEBT_TYPES.at(-1);
+  const activeDebts = () => (state.debts || []).filter(d => d.balance > 0.004);
+  // Meses para liquidar (con interés compuesto mensual si hay tasa)
+  const monthsToPay = d => {
+    if (!d.payment || d.balance <= 0) return null;
+    const r = (d.rate || 0) / 100 / 12;
+    if (!r) return Math.ceil(d.balance / d.payment);
+    if (d.payment <= d.balance * r) return Infinity;
+    return Math.ceil(-Math.log(1 - (r * d.balance) / d.payment) / Math.log(1 + r));
+  };
+  const nextDue = d => {
+    if (!d.dueDay) return null;
+    const n = new Date(), mk = (y, m) => new Date(y, m, Math.min(d.dueDay, new Date(y, m + 1, 0).getDate()), 12);
+    let due = mk(n.getFullYear(), n.getMonth());
+    if (iso(due) < today()) due = mk(n.getFullYear(), n.getMonth() + 1);
+    // Si ya abonaste en este ciclo (hasta 25 días antes del vencimiento), el siguiente pago es el del mes que sigue
+    if (d.lastPaid && d.lastPaid <= iso(due) && (due - parseISO(d.lastPaid)) / 86400000 <= 25) due = mk(due.getFullYear(), due.getMonth() + 1);
+    return iso(due);
+  };
+  const recvPending = r => Math.max(0, Math.round((r.amount - (r.paid || 0)) * 100) / 100);
+  const recvOpen = kind => (state.receivables || []).filter(r => (!kind || r.kind === kind) && recvPending(r) > 0.004);
+  const recvStatus = r => {
+    if (recvPending(r) <= 0.004) return 'paid';
+    if (r.kind !== 'client' || !r.dueDate) return 'pending';
+    const d = daysSince(r.dueDate);
+    return d > 0 ? 'overdue' : d >= -5 ? 'soon' : 'pending';
   };
   // Patrimonio
   const invStats = () => {
@@ -245,6 +295,7 @@
     { id: 'inicio', label: 'Inicio', icon: 'home' },
     { id: 'movimientos', label: 'Movimientos', icon: 'list' },
     { id: 'presupuestos', label: 'Presupuestos', icon: 'pie' },
+    { id: 'deudas', label: 'Deudas', icon: 'card' },
     { id: 'patrimonio', label: 'Patrimonio', icon: 'vault' },
     { id: 'ajustes', label: 'Ajustes', icon: 'gear' }
   ];
@@ -253,9 +304,10 @@
     const side = $('#sideNav');
     if (side) side.innerHTML = NAV.map(n => `<a class="side-link" href="#${n.id}" ${ui.view === n.id ? 'aria-current="page"' : ''}>${icon(n.icon)}${n.label}</a>`).join('');
     const tab = n => `<a class="tab" href="#${n.id}" ${ui.view === n.id ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${n.label === 'Movimientos' ? 'Historial' : n.label === 'Presupuestos' ? 'Límites' : n.label}</span></a>`;
-    $('#tabbar').innerHTML = tab(NAV[0]) + tab(NAV[1]) + `<button class="fab" data-action="add" aria-label="Nuevo movimiento">${icon('plus', 2.4)}</button>` + tab(NAV[2]) + tab(NAV[3]);
+    // Celular: Inicio · Historial · + · Deudas · Patrimonio (Límites vive en Inicio y en el menú lateral)
+    $('#tabbar').innerHTML = tab(NAV[0]) + tab(NAV[1]) + `<button class="fab" data-action="add" aria-label="Nuevo movimiento">${icon('plus', 2.4)}</button>` + tab(NAV[3]) + tab(NAV[4]);
     $('#monthLabel').textContent = monthName(ui.month);
-    $('#monthSwitch').style.visibility = ['patrimonio', 'ajustes'].includes(ui.view) ? 'hidden' : 'visible';
+    $('#monthSwitch').style.visibility = ['patrimonio', 'ajustes', 'deudas'].includes(ui.view) ? 'hidden' : 'visible';
     const gear = $('#topGear');
     if (gear) { if (ui.view === 'ajustes') gear.setAttribute('aria-current', 'page'); else gear.removeAttribute('aria-current'); }
   };
@@ -330,6 +382,14 @@
         <div class="tx-ico invest">${icon(inv ? invType(inv.type).icon : 'trend')}</div>
         <div class="tx-main"><div class="tx-title">${esc(name)}</div><div class="tx-meta"><span>${t.dir === 'out' ? 'Retiro' : 'Aportación'} · Patrimonio · ${esc(t.account)}</span></div></div>
         <div class="tx-amt num invest">${t.dir === 'out' ? '+' : '→ '}${money(t.amount)}</div>
+      </li>`;
+    }
+    if (t.type === 'debt' || t.type === 'collect' || t.type === 'lend') {
+      const m = { debt: ['card', 'Pago de deuda', '−'], collect: ['check', 'Cobro recibido', '+'], lend: ['person', 'Préstamo a', '→ '] }[t.type];
+      return `<li class="tx" data-edit="${t.id}" tabindex="0" role="button" aria-label="${esc(m[1] + ' ' + (t.note || ''))}">
+        <div class="tx-ico ${t.type === 'collect' ? 'income' : 'invest'}">${icon(m[0])}</div>
+        <div class="tx-main"><div class="tx-title">${esc(t.note || m[1])}</div><div class="tx-meta"><span>${m[1]} · ${esc(t.account)}${t.counted ? ' · ya contado en un gasto dividido' : ''}</span></div></div>
+        <div class="tx-amt num ${t.type === 'collect' ? 'income' : 'invest'}">${m[2]}${money(t.amount)}</div>
       </li>`;
     }
     const c = cat(t.cat), s = subOf(t);
@@ -501,14 +561,54 @@
         <span class="num up-amt">${money(x.amount, { compact: true })}</span></li>`).join('')}</ul>
       ${list.length > 6 ? `<p class="inv-note">Y ${list.length - 6} pagos más este mes.</p>` : ''}</section>`;
   };
+  // ---------- Recordatorios en el calendario del teléfono (.ics) ----------
+  // Evento de día completo, repetido según la frecuencia, con alarma a las 9:00 del día anterior.
+  const icsEsc = s => String(s).replace(/[\\,;]/g, m => '\\' + m).replace(/\n/g, '\\n');
+  const icsDay = d => d.replace(/-/g, '');
+  const rruleFor = (freq, day) => {
+    const md = d => (d > 28 ? -1 : d);   // días 29–31: último día del mes, para no saltarse febrero
+    if (freq === 'weekly') return 'FREQ=WEEKLY';
+    if (freq === 'biweekly') { const a = day <= 15 ? day : day - 15, b = a + 15; return `FREQ=MONTHLY;BYMONTHDAY=${a},${md(b)}`; }
+    if (freq === 'bimonthly') return `FREQ=MONTHLY;INTERVAL=2;BYMONTHDAY=${md(day)}`;
+    if (freq === 'yearly') return 'FREQ=YEARLY';
+    return `FREQ=MONTHLY;BYMONTHDAY=${md(day)}`;
+  };
+  const icsEvent = ({ uid: id, title, amount, start, rrule }) => {
+    const end = iso(new Date(parseISO(start).getTime() + 86400000));
+    return ['BEGIN:VEVENT', `UID:${id}@domi.app`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`,
+      `DTSTART;VALUE=DATE:${icsDay(start)}`, `DTEND;VALUE=DATE:${icsDay(end)}`, `SUMMARY:${icsEsc(`Pagar ${title} · ${amount}`)}`,
+      `DESCRIPTION:${icsEsc('Recordatorio de DOMI. Cuando pagues, regístralo en la app.')}`, rrule ? `RRULE:${rrule}` : '',
+      'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEsc(`Mañana pagas ${title} (${amount})`)}`, 'TRIGGER:-PT15H', 'END:VALARM', 'END:VEVENT'].filter(Boolean).join('\r\n');
+  };
+  const addToCalendar = ({ rec, debt, all }) => {
+    const ev = [];
+    const recs = (state.recurring || []).filter(r => r.active && r.template.type === 'expense' && (all || r.id === rec));
+    recs.forEach(r => ev.push(icsEvent({ uid: 'rec-' + r.id, title: r.template.note || (subOf(r.template) || cat(r.template.cat)).name, amount: money(r.template.amount), start: r.next, rrule: rruleFor(r.freq, r.day || +r.next.slice(8)) })));
+    activeDebts().filter(d => d.payment && d.dueDay && (all || d.id === debt)).forEach(d => {
+      const n = monthsToPay(d), md = d.dueDay > 28 ? -1 : d.dueDay;
+      ev.push(icsEvent({ uid: 'debt-' + d.id, title: d.name, amount: money(Math.min(d.payment, d.balance)), start: nextDue(d), rrule: `FREQ=MONTHLY;BYMONTHDAY=${md}${n && n !== Infinity ? `;COUNT=${n}` : ''}` }));
+    });
+    if (!ev.length) return toast('No hay pagos con fecha para agregar');
+    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//DOMI//Finanzas//ES', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Pagos DOMI', ...ev, 'END:VCALENDAR'].join('\r\n');
+    const name = `domi-${all ? 'pagos' : 'pago'}.ics`;
+    if (platform === 'ios' && !isNative) {
+      // Safari abre el archivo de calendario y ofrece «Agregar» directamente
+      const a = document.createElement('a'); a.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics); a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+    } else download(name, ics, 'text/calendar;charset=utf-8');
+    toast(ev.length === 1 ? 'Ábrelo y toca «Agregar» en tu calendario' : `${ev.length} pagos listos: ábrelo y toca «Agregar todos»`);
+  };
+
   const recListSheet = () => {
     const recs = (state.recurring || []).filter(r => r.active);
+    const withDates = recs.filter(r => r.template.type === 'expense').length + activeDebts().filter(d => d.payment && d.dueDay).length;
     return `${sheetHead('Pagos recurrentes')}
-    <p class="lede" style="margin:-6px 0 12px">DOMI los registra solos en su fecha. Toca uno para dejar de repetirlo.</p>
-    ${recs.length ? `<ul class="tx-list">${recs.map(r => { const c = subOf(r.template) || cat(r.template.cat); return `<li class="tx" data-recstop="${r.id}" role="button" tabindex="0">
+    <p class="lede" style="margin:-6px 0 12px">DOMI los registra solos en su fecha. Toca uno para dejar de repetirlo, o el calendario para que tu teléfono te avise un día antes.</p>
+    ${withDates ? `<button type="button" class="cal-add" data-action="ics-all">${icon('calendarDue')}<span><b>Agregar todos a mi calendario</b><small>${withDates} ${withDates === 1 ? 'pago' : 'pagos'} con aviso a las 9:00 am del día anterior</small></span></button>` : ''}
+    ${recs.length ? `<ul class="tx-list">${recs.map(r => { const c = subOf(r.template) || cat(r.template.cat); return `<li class="tx rec-row" data-recstop="${r.id}" role="button" tabindex="0">
       <div class="tx-ico ${r.template.type}">${icon(c.icon)}</div>
-      <div class="tx-main"><div class="tx-title">${esc(r.template.note || c.name)}</div><div class="tx-meta"><span>${freqOf(r.freq).long} · siguiente: ${esc(shortDate(r.next))}</span></div></div>
-      <div class="tx-amt num ${r.template.type}">${r.template.type === 'income' ? '+' : '−'}${money(r.template.amount)}</div></li>`; }).join('')}</ul>`
+      <div class="tx-main"><div class="tx-title">${esc(r.template.note || c.name)}</div><div class="tx-meta"><span>${freqOf(r.freq).long} · ${money(r.template.amount, { compact: true })} · siguiente: ${esc(shortDate(r.next))}</span></div></div>
+      ${r.template.type === 'expense' ? `<button type="button" class="icon-btn" data-ics-rec="${r.id}" aria-label="Agregar ${esc(r.template.note || c.name)} a mi calendario">${icon('calendarDue')}</button>` : `<div class="tx-amt num income">+${money(r.template.amount, { compact: true })}</div>`}</li>`; }).join('')}</ul>`
       : '<div class="cal-empty">Aún no tienes pagos recurrentes. Al registrar un gasto, activa «Se repite».</div>'}`;
   };
 
@@ -546,6 +646,8 @@
           <div class="hero-stat"><div class="eyebrow"><i class="dot w"></i>Movs.</div><strong class="num">${list.length}</strong></div>
         </div>
       </section>
+      ${debtsHome()}
+      ${upcomingCard()}
 
       <div class="insights">
         <div class="card insight"><div class="eyebrow">Vs. mes anterior</div><strong class="num ${delta !== null && delta <= 0 ? 'pos' : ''}">${delta === null ? '—' : (delta > 0 ? '+' : '') + pctFmt(delta)}</strong><p>${delta === null ? 'Sin datos del mes pasado.' : delta <= 0 ? 'Gastas menos. Bien hecho.' : 'Gastas más que el mes pasado.'}</p></div>
@@ -784,6 +886,193 @@
     </div>`;
   };
 
+  // =====================================================================
+  // Deudas: Debo (lo que debes) · Me deben (clientes y personas)
+  // =====================================================================
+  const debtsHome = () => {
+    const debts = activeDebts(), recv = recvOpen();
+    if (!debts.length && !recv.length) {
+      if (!state.tx.length) return '';
+      return `<section class="card c-debts debt-empty"><div><b>¿Debes algo o te deben?</b><p>Anótalo para que no se te olvide: tarjetas, préstamos, clientes o amigos.</p></div>
+        <div class="client-acts"><button class="btn sm" data-action="debt-new">Debo</button><button class="btn sm" data-action="recv-new">Me deben</button></div></section>`;
+    }
+    const owe = sum(debts, d => d.balance), monthly = sum(debts, d => Math.min(d.payment || 0, d.balance));
+    const cli = sum(recvOpen('client'), recvPending), per = sum(recvOpen('person'), recvPending);
+    const overdue = recvOpen('client').filter(r => recvStatus(r) === 'overdue').sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+    const nxt = debts.filter(d => d.payment && d.dueDay).map(d => ({ d, due: nextDue(d) })).sort((a, b) => a.due.localeCompare(b.due))[0];
+    const inDays = d => { const n = -daysSince(d); return n === 0 ? 'hoy' : n === 1 ? 'mañana' : `en ${n} días`; };
+    return `<section class="card c-debts debt-home"><div class="card-head"><h2 class="h2">Deudas y cobros</h2><a class="link" href="#deudas">Ver todo</a></div>
+      <div class="dh-two">
+        <a href="#deudas" data-dtab="debo"><div class="eyebrow">Debes</div><div class="v num">${money(owe, { compact: true })}</div><small>${monthly ? `Pagas ${money(monthly, { compact: true })} al mes` : debts.length ? `${debts.length} ${debts.length === 1 ? 'deuda' : 'deudas'}` : 'Sin deudas'}</small></a>
+        <a href="#deudas" data-dtab="me"><div class="eyebrow">Te deben</div><div class="v num pos">${money(cli + per, { compact: true })}</div><small>${cli && per ? `Clientes ${money(cli, { compact: true })} · Personas ${money(per, { compact: true })}` : cli ? 'Clientes' : per ? 'Personas' : 'Nadie'}</small></a>
+      </div>
+      ${overdue ? `<div class="alert-row red">${icon('alert')}<span><b>${esc(overdue.name)} te debe</b><small>${money(recvPending(overdue), { compact: true })} · vencida hace ${daysSince(overdue.dueDate)} ${daysSince(overdue.dueDate) === 1 ? 'día' : 'días'}</small></span><button class="btn sm danger" data-collect="${overdue.id}">Cobrar</button></div>` : ''}
+      ${nxt ? `<div class="alert-row blue">${icon(debtType(nxt.d.type).icon)}<span><b>${esc(nxt.d.name)}</b><small>${money(Math.min(nxt.d.payment, nxt.d.balance), { compact: true })} · tu pago es ${inDays(nxt.due)}</small></span><button class="btn green sm" data-debt="${nxt.d.id}">Pagar</button></div>` : ''}
+    </section>`;
+  };
+
+  const debtCard = d => {
+    const t = debtType(d.type), paidPct = d.original ? Math.max(0, Math.min(100, ((d.original - d.balance) / d.original) * 100)) : 0;
+    const months = monthsToPay(d), done = d.balance <= 0.004;
+    const top = activeDebts().filter(x => x.rate > 0).sort((a, b) => b.rate - a.rate)[0];
+    const prio = !done && top && top.id === d.id && activeDebts().length > 1;
+    const meta = [d.dueDay ? `Paga el día ${d.dueDay}` : (d.type === 'persona' ? 'Sin fecha fija' : ''), d.rate ? `${d.rate}% anual` : (d.type === 'msi' || d.type === 'persona' ? 'Sin intereses' : '')].filter(Boolean).join(' · ');
+    return `<article class="card debt-card ${done ? 'done' : ''}" data-debt="${d.id}" role="button" tabindex="0">
+      <div class="goal-top"><div class="dc-id"><div class="tx-ico">${icon(t.icon)}</div><div><div class="goal-name">${esc(d.name)}</div><div class="tx-meta"><span>${esc(meta || t.name)}</span></div></div></div>
+        ${done ? '<span class="tag">LIQUIDADA</span>' : prio ? '<span class="tag over">PRIORIDAD</span>' : ''}</div>
+      <div class="goal-amt num">${money(d.balance, { compact: true })} ${d.original && d.original > d.balance ? `<span>de ${money(d.original, { compact: true })}</span>` : ''}</div>
+      <div class="bar ${prio ? 'over' : ''}"><i style="width:${done ? 100 : paidPct}%"></i></div>
+      <div class="budget-foot"><span>${done ? 'Pagada por completo' : `${pctFmt(paidPct)} pagado`}</span><span>${done ? '' : months === null ? 'Sin pago mensual' : months === Infinity ? 'El pago no cubre los intereses' : `Liquidas en ${months} ${months === 1 ? 'mes' : 'meses'}`}</span></div>
+    </article>`;
+  };
+
+  const recvCard = r => {
+    const st = recvStatus(r), pend = recvPending(r), client = r.kind === 'client';
+    const tag = { overdue: ['VENCIDA', 'over'], soon: [`VENCE EN ${-daysSince(r.dueDate)} ${-daysSince(r.dueDate) === 1 ? 'DÍA' : 'DÍAS'}`, 'soon'], pending: ['PENDIENTE', ''], paid: ['PAGADO', ''] }[st];
+    const left = client && r.dueDate ? (st === 'overdue' ? `Venció hace ${daysSince(r.dueDate)} ${daysSince(r.dueDate) === 1 ? 'día' : 'días'}` : `Vence el ${shortDate(r.dueDate)}`) : (r.paid ? `Te ha pagado ${money(r.paid, { compact: true })}` : r.fromSplit ? 'De un gasto dividido' : 'Préstamo personal');
+    const right = client ? (r.invoice ? `Factura ${esc(r.invoice)}` : 'Sin factura') : (r.paid && pend ? `Falta ${money(pend, { compact: true })}` : '');
+    return `<article class="card client ${st === 'overdue' ? 'overdue' : ''}">
+      <div class="client-top" data-recv="${r.id}" role="button" tabindex="0"><div style="min-width:0"><div class="client-name">${esc(r.name)}</div><div class="tx-meta"><span>${esc(r.concept || (client ? 'Trabajo' : 'Préstamo'))}</span></div></div>${client || st !== 'pending' ? `<span class="tag ${tag[1]}">${tag[0]}</span>` : ''}</div>
+      <div class="client-amt num">${money(pend, { compact: true })}${r.paid ? ` <span class="of">de ${money(r.amount, { compact: true })}</span>` : ''}</div>
+      <div class="budget-foot"><span>${left}</span><span>${right}</span></div>
+      <div class="client-acts"><button class="btn sm" data-remind="${r.id}">${icon('bell')}Recordar</button><button class="btn sm green" data-collect="${r.id}">${icon('check')}Me pagó</button></div>
+    </article>`;
+  };
+
+  const viewDeudas = () => {
+    const tab = ui.dtab === 'me' ? 'me' : 'debo', mtab = ui.mtab === 'personas' ? 'person' : 'client';
+    const head = `<div class="page-head"><div><div class="eyebrow">Lo que debes y te deben</div><h1 class="h1">Deudas<span>.</span></h1></div>
+      <button class="btn green sm" data-action="${tab === 'debo' ? 'debt-new' : 'recv-new'}">${icon('plus', 2.2)}${tab === 'debo' ? 'Nueva deuda' : 'Nuevo cobro'}</button></div>
+      <div class="seg seg-top" role="tablist"><button type="button" role="tab" data-dtab="debo" aria-pressed="${tab === 'debo'}" aria-selected="${tab === 'debo'}">Debo</button><button type="button" role="tab" data-dtab="me" aria-pressed="${tab === 'me'}" aria-selected="${tab === 'me'}">Me deben</button></div>`;
+    if (tab === 'debo') {
+      const all = state.debts || [], act = activeDebts();
+      if (!all.length) return head + `<div class="card empty"><div class="glyph">${icon('card')}</div><h3>Sin deudas registradas</h3><p>Tarjetas, préstamos, auto, meses sin intereses o lo que le debes a alguien. DOMI te dice en cuánto las liquidas.</p><div class="actions"><button class="btn green" data-action="debt-new">${icon('plus', 2.2)}Agregar deuda</button></div></div>`;
+      const nd = act.filter(d => d.dueDay).map(nextDue).sort()[0];
+      const list = [...all].sort((a, b) => (b.balance > 0) - (a.balance > 0) || (b.rate || 0) - (a.rate || 0) || b.balance - a.balance);
+      return head + `<div class="summary-row"><div class="card"><div class="eyebrow">Total</div><strong class="num">${kfmt(sum(act, d => d.balance))}</strong></div><div class="card"><div class="eyebrow">Al mes</div><strong class="num">${kfmt(sum(act, d => Math.min(d.payment || 0, d.balance)))}</strong></div><div class="card"><div class="eyebrow">Próximo</div><strong>${nd ? esc(shortDate(nd)) : '—'}</strong></div></div>
+        <div class="goals">${list.map(debtCard).join('')}</div>
+        ${act.filter(d => d.rate > 0).length > 1 ? '<p class="inv-note">«Prioridad» marca la deuda con la tasa más alta: pagarle de más a esa primero te ahorra más intereses.</p>' : ''}`;
+    }
+    const sub = `<div class="seg-sub" role="tablist"><button type="button" data-mtab="clientes" aria-pressed="${mtab === 'client'}">Clientes</button><button type="button" data-mtab="personas" aria-pressed="${mtab === 'person'}">Personas</button></div>`;
+    const all = (state.receivables || []).filter(r => r.kind === mtab), open = all.filter(r => recvPending(r) > 0.004);
+    const order = { overdue: 0, soon: 1, pending: 2 };
+    open.sort((a, b) => order[recvStatus(a)] - order[recvStatus(b)] || (a.dueDate || a.date || '').localeCompare(b.dueDate || b.date || ''));
+    const m = ym(new Date());
+    const collected = state.tx.filter(t => t.date.startsWith(m) && ((mtab === 'client' && t.type === 'income' && t.recvId) || (mtab === 'person' && t.type === 'collect')));
+    const paidNow = all.filter(r => recvPending(r) <= 0.004 && collected.some(t => t.recvId === r.id));
+    const summary = mtab === 'client'
+      ? `<div class="summary-row"><div class="card"><div class="eyebrow">Por cobrar</div><strong class="num">${kfmt(sum(open, recvPending))}</strong></div><div class="card"><div class="eyebrow">Vencido</div><strong class="num" ${open.some(r => recvStatus(r) === 'overdue') ? 'style="color:var(--danger)"' : ''}>${kfmt(sum(open.filter(r => recvStatus(r) === 'overdue'), recvPending))}</strong></div><div class="card"><div class="eyebrow">Cobrado</div><strong class="num pos">${kfmt(sum(collected, t => t.amount))}</strong><small class="cal-sub">este mes</small></div></div>`
+      : `<div class="summary-row"><div class="card"><div class="eyebrow">Te deben</div><strong class="num pos">${kfmt(sum(open, recvPending))}</strong></div><div class="card"><div class="eyebrow">Personas</div><strong class="num">${new Set(open.map(r => r.name.trim().toLowerCase())).size}</strong></div><div class="card"><div class="eyebrow">Cobrado</div><strong class="num">${kfmt(sum(collected, t => t.amount))}</strong><small class="cal-sub">este mes</small></div></div>`;
+    const empty = mtab === 'client'
+      ? `<div class="card empty"><div class="glyph">${icon('briefcase')}</div><h3>Sin cobros pendientes</h3><p>Registra lo que te deben tus clientes: proyecto, monto y fecha de pago. DOMI te avisa cuando una factura se vence.</p><div class="actions"><button class="btn green" data-action="recv-new">${icon('plus', 2.2)}Nuevo cobro</button></div></div>`
+      : `<div class="card empty"><div class="glyph">${icon('person')}</div><h3>Nadie te debe</h3><p>Al dividir un gasto o prestarle a alguien, aparecerá aquí. ${all.length ? '<b>Todo saldado.</b>' : ''}</p><div class="actions"><button class="btn green" data-action="recv-new">${icon('plus', 2.2)}Registrar préstamo</button></div></div>`;
+    return head + sub + summary + (open.length ? `<div class="goals">${open.map(recvCard).join('')}</div>` : empty)
+      + paidNow.map(r => `<div class="paid-row"><span>Pagado este mes · ${esc(r.name)}</span><b class="num">+${money(r.amount, { compact: true })} ✓</b></div>`).join('');
+  };
+
+  // ---------- Formularios de deudas y cobros ----------
+  const dayOptions = sel => `<option value="">Sin fecha fija</option>${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${+sel === i + 1 ? 'selected' : ''}>Día ${i + 1}</option>`).join('')}`;
+  const debtForm = id => {
+    const d = id ? state.debts.find(x => x.id === id) : { name: '', type: ui.debtType || 'tarjeta', balance: '', original: '', payment: '', dueDay: '', rate: '' };
+    const type = ui.debtType || d.type;
+    return `${sheetHead(id ? 'Editar deuda' : 'Nueva deuda')}
+    <form id="debtForm" data-id="${id || ''}" autocomplete="off">
+      <label><span class="field-label">Nombre</span><input class="input" name="name" required maxlength="40" placeholder="Ej. Tarjeta BBVA, Préstamo auto, Mamá" value="${esc(d.name)}"></label>
+      <span class="field-label">Tipo</span>
+      <div class="sub-chips">${DEBT_TYPES.map(t => `<button type="button" class="sub-chip" data-debttype="${t.id}" aria-pressed="${type === t.id}">${icon(t.icon)}${t.name}</button>`).join('')}</div>
+      <div class="row2" style="margin-top:6px">
+        <label><span class="field-label">Debes hoy</span><input class="input" name="balance" inputmode="decimal" required placeholder="0" value="${d.balance === '' ? '' : d.balance}"></label>
+        <label><span class="field-label">Monto original</span><input class="input" name="original" inputmode="decimal" placeholder="Opcional" value="${d.original && d.original !== d.balance ? d.original : ''}"></label>
+      </div>
+      <div class="row2">
+        <label><span class="field-label">Pago mensual</span><input class="input" name="payment" inputmode="decimal" placeholder="Opcional" value="${d.payment || ''}"></label>
+        <label><span class="field-label">Día de pago</span><select class="input" name="dueDay">${dayOptions(d.dueDay)}</select></label>
+      </div>
+      <label><span class="field-label">Tasa de interés anual (%)</span><input class="input" name="rate" inputmode="decimal" placeholder="Ej. 52 · déjalo vacío si no cobra intereses" value="${d.rate || ''}"></label>
+      <div class="sheet-actions">
+        ${id ? `<button type="button" class="btn danger" data-action="debt-del" data-id="${id}" style="flex:0 0 auto;width:52px;padding:0" aria-label="Eliminar deuda">${icon('trash')}</button>` : ''}
+        <button class="btn primary">${id ? 'Guardar cambios' : 'Agregar deuda'}</button>
+      </div>
+    </form>`;
+  };
+  const debtSheet = id => {
+    const d = state.debts.find(x => x.id === id), op = ui.debtOp || 'pay', months = monthsToPay(d);
+    const sugg = d.payment ? Math.min(d.payment, d.balance) : '';
+    return `<div class="sheet-head"><div><h2 class="h2" id="sheetTitle" style="font-size:20px">${esc(d.name)}</h2><div class="tx-meta" style="margin-top:2px">${esc(debtType(d.type).name)}${d.dueDay ? ` · paga el día ${d.dueDay}` : ''}</div></div><button type="button" class="icon-btn" data-action="close" aria-label="Cerrar">${icon('x')}</button></div>
+    <div class="inv-stats">
+      <div><span class="eyebrow">Debes</span><b class="num">${money(d.balance, { compact: true })}</b></div>
+      <div><span class="eyebrow">Pago al mes</span><b class="num">${d.payment ? money(d.payment, { compact: true }) : '—'}</b></div>
+      <div><span class="eyebrow">Liquidas en</span><b>${months === null ? '—' : months === Infinity ? '∞' : `${months} ${months === 1 ? 'mes' : 'meses'}`}</b></div>
+    </div>
+    <form id="debtMoveForm" data-id="${id}" autocomplete="off">
+      <div class="seg" role="group"><button type="button" data-debtop="pay" aria-pressed="${op === 'pay'}">Abonar</button><button type="button" data-debtop="set" aria-pressed="${op === 'set'}">Actualizar saldo</button></div>
+      <label class="amount-field"><span class="cur">${esc(curSymbol())}</span><span class="sr-only">Monto</span><input name="amount" inputmode="decimal" placeholder="${op === 'set' ? String(Math.round(d.balance)) : '0'}" value="${op === 'pay' && sugg ? sugg : ''}" required></label>
+      <div class="row2">
+        ${op === 'set' ? '' : `<label><span class="field-label">Desde</span><select class="input" name="account">${ACCOUNTS.map(a => `<option>${a}</option>`).join('')}</select></label>`}
+        <label ${op === 'set' ? 'style="grid-column:1/-1"' : ''}><span class="field-label">Fecha</span><input class="input" type="date" name="date" value="${today()}" required></label>
+      </div>
+      <div class="toggle-row note-row"><span><b>${op === 'pay' ? 'No cuenta como gasto' : 'Solo corrige el saldo'}</b><small>${op === 'pay' ? (d.counted ? 'Este gasto ya se contó cuando lo dividiste; el pago solo salda la deuda.' : 'Sale de tu balance y reduce lo que debes. Tus gastos del mes no se inflan.') : 'Útil cuando llega tu estado de cuenta con el saldo nuevo. No mueve dinero.'}</small></span></div>
+      ${d.payment && d.dueDay ? `<button type="button" class="cal-add" data-ics-debt="${id}">${icon('calendarDue')}<span><b>Agregar a mi calendario</b><small>Te avisa un día antes de cada pago</small></span></button>` : ''}
+      <div class="sheet-actions">
+        <button type="button" class="btn ghost" data-action="debt-edit" data-id="${id}" style="flex:0 0 auto">Editar</button>
+        <button class="btn ${op === 'pay' ? 'green' : 'primary'}">${op === 'pay' ? 'Registrar abono' : 'Guardar saldo'}</button>
+      </div>
+    </form>`;
+  };
+  const recvForm = id => {
+    const r = id ? state.receivables.find(x => x.id === id) : { kind: ui.mtab === 'personas' ? 'person' : 'client', name: '', concept: '', amount: '', dueDate: iso(new Date(Date.now() + 15 * 86400000)), invoice: '' };
+    const kind = ui.recvKind || r.kind, client = kind === 'client';
+    return `${sheetHead(id ? 'Editar cobro' : client ? 'Nuevo cobro a cliente' : 'Préstamo a una persona')}
+    <form id="recvForm" data-id="${id || ''}" autocomplete="off">
+      ${id ? '' : `<div class="seg" role="group"><button type="button" data-recvkind="client" aria-pressed="${client}">Cliente</button><button type="button" data-recvkind="person" aria-pressed="${!client}">Persona</button></div>`}
+      <label><span class="field-label">${client ? 'Cliente' : '¿Quién te debe?'}</span><input class="input" name="name" required maxlength="40" placeholder="${client ? 'Ej. Estudio Norte' : 'Ej. Olivia'}" value="${esc(r.name)}"></label>
+      <label><span class="field-label">${client ? 'Concepto o proyecto' : 'Concepto'}</span><input class="input" name="concept" maxlength="60" placeholder="${client ? 'Ej. Branding completo' : 'Ej. Préstamo para la renta'}" value="${esc(r.concept || '')}"></label>
+      <div class="row2">
+        <label><span class="field-label">Monto</span><input class="input" name="amount" inputmode="decimal" required placeholder="0" value="${r.amount || ''}"></label>
+        ${client ? `<label><span class="field-label">Fecha límite de pago</span><input class="input" type="date" name="dueDate" value="${r.dueDate || ''}"></label>` : '<div></div>'}
+      </div>
+      ${client ? `<label><span class="field-label">Folio de factura</span><input class="input" name="invoice" maxlength="24" placeholder="Opcional · Ej. A-123" value="${esc(r.invoice || '')}"></label>
+        <div class="toggle-row note-row"><span><b>Cuenta como ingreso al cobrar</b><small>Cuando marques «Me pagó», DOMI lo registra como ingreso de Freelance en ese mes.</small></span></div>`
+        : id ? '' : `<button type="button" class="toggle-row" role="switch" aria-checked="${ui.recvLend !== false}" data-action="recv-lend"><span><b>Ya le di el dinero</b><small>Sale de tu balance ahora; cuando te pague, regresa. No es gasto ni ingreso.</small></span><span class="switch" aria-hidden="true" aria-checked="${ui.recvLend !== false}"></span></button>`}
+      <div class="sheet-actions">
+        ${id ? `<button type="button" class="btn danger" data-action="recv-del" data-id="${id}" style="flex:0 0 auto;width:52px;padding:0" aria-label="Eliminar cobro">${icon('trash')}</button>` : ''}
+        <button class="btn primary">${id ? 'Guardar cambios' : 'Guardar'}</button>
+      </div>
+    </form>`;
+  };
+  const collectSheet = id => {
+    const r = state.receivables.find(x => x.id === id), pend = recvPending(r), client = r.kind === 'client';
+    return `${sheetHead(`${esc(r.name)} te pagó`)}
+    <form id="collectForm" data-id="${id}" autocomplete="off">
+      <p class="lede" style="margin:-6px 0 0">${esc(r.concept || (client ? 'Cobro a cliente' : 'Préstamo'))} · pendiente ${money(pend)}</p>
+      <label class="amount-field"><span class="cur">${esc(curSymbol())}</span><span class="sr-only">Monto cobrado</span><input name="amount" inputmode="decimal" value="${pend}" required></label>
+      <div class="row2">
+        <label><span class="field-label">Hacia</span><select class="input" name="account">${ACCOUNTS.map(a => `<option ${a === 'Transferencia' ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
+        <label><span class="field-label">Fecha</span><input class="input" type="date" name="date" value="${today()}" required></label>
+      </div>
+      <div class="toggle-row note-row"><span><b>${client ? 'Se registra como ingreso' : 'Regresa a tu balance'}</b><small>${client ? 'Entra como ingreso de Freelance en este mes.' : r.fromSplit ? 'Ese dinero ya era tuyo: no cuenta como ingreso.' : 'Es el dinero que prestaste: no cuenta como ingreso.'} Si te pagó solo una parte, cambia el monto.</small></span></div>
+      <div class="sheet-actions"><button type="button" class="btn ghost" data-action="recv-edit" data-id="${id}" style="flex:0 0 auto">Editar</button><button class="btn green">Registrar cobro</button></div>
+    </form>`;
+  };
+  // Movimiento de deuda o cobro tocado desde el historial
+  const moveSheet = t => {
+    const title = { debt: 'Pago de deuda', collect: 'Cobro recibido', lend: 'Préstamo' }[t.type];
+    return `${sheetHead(title)}
+    <div class="inv-stats" style="grid-template-columns:1fr 1fr"><div><span class="eyebrow">Monto</span><b class="num">${money(t.amount)}</b></div><div><span class="eyebrow">Fecha</span><b>${esc(dayLabel(t.date))}</b></div></div>
+    <p class="lede" style="margin:14px 0 0">${esc(t.note || '')} · ${esc(t.account)}. ${t.type === 'collect' ? 'Al eliminarlo, vuelve a quedar pendiente de cobro.' : t.type === 'debt' ? 'Al eliminarlo, el saldo de la deuda vuelve a subir.' : ''}</p>
+    <div class="sheet-actions"><button type="button" class="btn danger" data-action="move-del" data-id="${t.id}">${icon('trash')}Eliminar movimiento</button></div>`;
+  };
+  // Mensaje de recordatorio de cobro (WhatsApp o menú de compartir)
+  const remind = id => {
+    const r = state.receivables.find(x => x.id === id), pend = money(recvPending(r));
+    const me = state.settings.name ? ` Soy ${state.settings.name}.` : '';
+    const text = r.kind === 'client'
+      ? `Hola ${r.name}, ¿cómo estás?${me} Te escribo para recordarte el pago de ${r.concept || 'nuestro trabajo'}${r.invoice ? ` (factura ${r.invoice})` : ''} por ${pend}${r.dueDate ? `, con fecha límite el ${shortDate(r.dueDate)}` : ''}. ¡Muchas gracias!`
+      : `Hola ${r.name}, te recuerdo los ${pend}${r.concept ? ` de ${r.concept}` : ''}. Cuando puedas, ¡gracias!`;
+    if (navigator.share && platform !== 'desktop') { navigator.share({ text }).catch(() => {}); return; }
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+  };
+
   const viewPatrimonio = () => {
     const st = invStats(), saved = goalsSaved(), total = saved + st.value;
     const { int, cents } = moneySplit(total);
@@ -835,7 +1124,7 @@
     <p class="lede" style="text-align:center;margin-top:28px;font-size:12px">DOMI · local-first · tus datos no salen de este dispositivo</p>`;
   };
 
-  const VIEWS = { inicio: viewInicio, movimientos: viewMovimientos, presupuestos: viewPresupuestos, patrimonio: viewPatrimonio, ajustes: viewAjustes };
+  const VIEWS = { inicio: viewInicio, movimientos: viewMovimientos, presupuestos: viewPresupuestos, deudas: viewDeudas, patrimonio: viewPatrimonio, ajustes: viewAjustes };
 
   const render = () => {
     renderNav();
@@ -889,6 +1178,7 @@
         <span class="switch" aria-hidden="true" aria-checked="${!!d.reimb}"></span></button>
       ${d.reimb ? `<button type="button" class="toggle-row" role="switch" aria-checked="${d.reimb === 'done'}" data-action="reimb-done"><span><b>Ya me lo pagaron</b><small>Marca como reembolsado</small></span>
         <span class="switch" aria-hidden="true" aria-checked="${d.reimb === 'done'}"></span></button>` : ''}` : ''}
+      ${splitBlock(d)}
       <button type="button" class="toggle-row" role="switch" aria-checked="${!!d.recur}" data-action="recur-toggle"><span><b>Se repite</b><small>${d.recur ? 'DOMI lo registrará solo en cada fecha' : 'Renta, Netflix, colegiatura, nómina…'}</small></span>
         <span class="switch" aria-hidden="true" aria-checked="${!!d.recur}"></span></button>
       ${d.recur ? `<div class="sub-chips recur-chips" role="group" aria-label="Frecuencia">${FREQS.map(f => `<button type="button" class="sub-chip" data-freq="${f.id}" aria-pressed="${d.recur === f.id}">${f.name}</button>`).join('')}</div>
@@ -900,8 +1190,60 @@
     </form>`;
   };
 
+  // ---------- Dividir gasto ----------
+  const mny = n => money(n, { compact: Math.round(n * 100) % 100 === 0 });   // sin .00 cuando es exacto
+  const splitCalc = d => {
+    const sp = d.split, total = parseAmount(d.amount);
+    const parts = [{ name: 'Yo', shares: sp.me, me: true }, ...sp.people.map((p, k) => ({ ...p, k })).filter(p => p.on && p.shares > 0)];
+    const n = sum(parts, p => p.shares) || 1;
+    const amt = p => Math.round((total * p.shares / n) * 100) / 100;
+    const others = parts.filter(p => !p.me).map(p => ({ name: (p.name || '').trim(), k: p.k, amount: amt(p) }));
+    return { total, mine: amt(parts[0]), others, payer: sp.payer, other: (sp.other || '').trim() };
+  };
+  const splitSummary = d => {
+    const c = splitCalc(d);
+    if (!c.total) return '<p>Escribe el monto total para ver cuánto le toca a cada quien.</p>';
+    if (c.payer === 'other') return `<div><div class="eyebrow">Tu gasto</div><b class="num">${mny(c.mine)}</b></div><div><div class="eyebrow">Le debes a ${esc(c.other || '…')}</div><b class="num">${mny(c.mine)}</b></div><p>Se registra tu parte como gasto y aparecerá en Deudas → Debo hasta que se la pagues.</p>`;
+    const named = c.others.filter(o => o.name);
+    return `<div><div class="eyebrow">Tu gasto</div><b class="num">${mny(c.mine)}</b></div><div><div class="eyebrow">Te deben</div><b class="num pos">${mny(sum(c.others, o => o.amount))}</b></div>
+      <p>${named.length ? named.map(o => `${esc(o.name)} ${mny(o.amount)}`).join(' · ') + '. Aparecerán en Deudas → Me deben → Personas.' : 'Escribe el nombre de cada persona.'}</p>`;
+  };
+  const splitBlock = d => {
+    if (d.type !== 'expense') return '';
+    if (d.id) return d.split ? `<div class="toggle-row note-row"><span><b>Gasto dividido</b><small>Total ${mny(d.split.total)} · tu parte ${mny(d.amount)}. Los cobros están en Deudas → Me deben.</small></span></div>` : '';
+    const sp = d.split;
+    const toggle = `<button type="button" class="toggle-row" role="switch" aria-checked="${!!sp}" data-action="split-toggle"><span><b>Dividir gasto</b><small>Solo tu parte cuenta como gasto</small></span><span class="switch" aria-hidden="true" aria-checked="${!!sp}"></span></button>`;
+    if (!sp) return toggle;
+    const c = splitCalc(d), amtOf = k => { const o = c.others.find(x => x.k === k); return o ? mny(o.amount) : '—'; };
+    const stepper = k => `<span class="stepper"><button type="button" data-splitdec="${k}" aria-label="Menos">−</button><button type="button" data-splitinc="${k}" aria-label="Más">+</button></span>`;
+    return `${toggle}
+      <span class="field-label">¿Quién pagó?</span>
+      <div class="seg" role="group"><button type="button" data-splitpayer="me" aria-pressed="${sp.payer === 'me'}">Yo</button><button type="button" data-splitpayer="other" aria-pressed="${sp.payer === 'other'}">Otra persona</button></div>
+      ${sp.payer === 'other' ? `<input class="input" name="splitOther" maxlength="30" placeholder="¿Quién pagó? Ej. Marco" value="${esc(sp.other || '')}" style="margin-top:8px">` : ''}
+      <span class="field-label">¿Entre quiénes?</span>
+      <div class="split">
+        <div class="split-row"><span class="imp-check" aria-pressed="${sp.me > 0}">${icon('check', 2.6)}</span><span class="nm">Yo</span><span class="pt">${sp.me}× <b data-splitamt="-1">${mny(c.mine)}</b></span>${stepper(-1)}</div>
+        ${sp.people.map((p, k) => `<div class="split-row ${p.on && p.shares ? '' : 'off'}"><button type="button" class="imp-check" data-splitp="${k}" aria-pressed="${p.on}" aria-label="Incluir">${icon('check', 2.6)}</button>
+          <input class="split-name" data-splitname="${k}" maxlength="24" placeholder="Nombre" value="${esc(p.name)}"><span class="pt">${p.shares}× <b data-splitamt="${k}">${p.on ? amtOf(k) : '—'}</b></span>${stepper(k)}</div>`).join('')}
+        <button type="button" class="add-person" data-action="split-add">${icon('plus', 2.2)}Agregar persona</button>
+      </div>
+      <div class="split-sum" id="splitSum">${splitSummary(d)}</div>`;
+  };
+  const refreshSplit = () => {
+    if (!ui.draft || !ui.draft.split) return;
+    syncDraft();
+    const c = splitCalc(ui.draft);
+    const me = $('[data-splitamt="-1"]'); if (me) me.textContent = mny(c.mine);
+    c.others.forEach(o => { const el = $(`[data-splitamt="${o.k}"]`); if (el) el.textContent = mny(o.amount); });
+    const s = $('#splitSum'); if (s) s.innerHTML = splitSummary(ui.draft);
+  };
+
   const syncDraft = () => {
     const f = $('#txForm'); if (!f || !ui.draft) return;
+    if (ui.draft.split) {
+      $$('[data-splitname]').forEach(el => { const p = ui.draft.split.people[+el.dataset.splitname]; if (p) p.name = el.value; });
+      if (f.splitOther) ui.draft.split.other = f.splitOther.value;
+    }
     ui.draft.amount = f.amount.value;
     ui.draft.date = f.date.value;
     ui.draft.account = f.account.value;
@@ -912,6 +1254,7 @@
   const openTx = id => {
     const t = id && state.tx.find(x => x.id === id);
     if (t && t.type === 'invest') return openSheet(invTxSheet(t));
+    if (t && ['debt', 'collect', 'lend'].includes(t.type)) return openSheet(moveSheet(t));
     const defDate = ui.month === ym(new Date()) ? today() : `${ui.month}-01`;
     ui.draft = t ? { ...t } : { type: 'expense', amount: '', cat: 'comida', date: defDate, account: 'Débito', note: '', receipt: null, reimb: null };
     const r = t && t.recurId && (state.recurring || []).find(x => x.id === t.recurId && x.active);
@@ -1291,7 +1634,9 @@
     if (!list.length) return toast('No hay movimientos para exportar en este periodo.');
     const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [['Fecha', 'Tipo', 'Categoría', 'Subcategoría', 'Cuenta', 'Nota', 'Monto', 'Moneda', 'Reembolso', 'Recibo']]
-      .concat(sorted(list).map(t => t.type === 'invest'
+      .concat(sorted(list).map(t => ['debt', 'collect', 'lend'].includes(t.type)
+        ? [t.date, { debt: 'Pago de deuda', collect: 'Cobro recibido', lend: 'Préstamo otorgado' }[t.type], 'Deudas', t.note || '', t.account, '', signed(t), state.settings.currency, '', '']
+        : t.type === 'invest'
         ? [t.date, t.dir === 'out' ? 'Retiro de inversión' : 'Aportación a inversión', 'Patrimonio', state.investments.find(x => x.id === t.invId)?.name || t.note || '', t.account, '', signed(t), state.settings.currency, '', '']
         : [t.date, t.type === 'income' ? 'Ingreso' : 'Gasto', cat(t.cat).name, subOf(t)?.name || '', t.account, t.note, (t.type === 'income' ? 1 : -1) * t.amount, state.settings.currency, t.reimb === 'done' ? 'Reembolsado' : t.reimb ? 'Pendiente' : '', t.receipt ? 'Sí' : '']));
     download(`domi-${ui.type === 'reimb' ? 'reembolsos' : ui.month}.csv`, '﻿' + rows.map(r => r.map(q).join(',')).join('\n'), 'text/csv;charset=utf-8');
@@ -1361,6 +1706,34 @@
         { id: uid(), name: 'Viaje a Japón', target: 45000, saved: 12800, deadline: `${now.getFullYear() + 1}-10-01` },
         { id: uid(), name: 'Laptop nueva', target: 32000, saved: 32000, deadline: '' }
       ] };
+    // Deudas, cobros y pagos recurrentes de ejemplo
+    const rel = n => iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() + n, 12));
+    const dd = n => new Date(now.getFullYear(), now.getMonth(), now.getDate() + n).getDate();
+    state.debts = [
+      { id: uid(), name: 'Tarjeta BBVA Azul', type: 'tarjeta', balance: 18450, original: 26700, payment: 3500, dueDay: dd(9), rate: 52, history: [], created: Date.now() },
+      { id: uid(), name: 'Préstamo auto', type: 'auto', balance: 86200, original: 180000, payment: 4900, dueDay: dd(3), rate: 12, history: [], created: Date.now() },
+      { id: uid(), name: 'iPhone 16 · 12 MSI', type: 'msi', balance: 11000, original: 24000, payment: 2000, dueDay: dd(16), rate: 0, history: [], created: Date.now() },
+      { id: uid(), name: 'Mamá', type: 'persona', balance: 5000, original: 8000, payment: 0, dueDay: null, rate: 0, history: [], created: Date.now() }
+    ];
+    const lumen = { id: uid(), kind: 'client', name: 'Agencia Lumen', concept: 'Campaña de lanzamiento', amount: 8500, paid: 8500, dueDate: rel(-6), invoice: 'A-120', date: rel(-25), created: Date.now() };
+    state.receivables = [
+      { id: uid(), kind: 'client', name: 'Estudio Norte', concept: 'Branding completo', amount: 15000, paid: 0, dueDate: rel(-5), invoice: 'A-123', date: rel(-20), created: Date.now() },
+      { id: uid(), kind: 'client', name: 'Café Raíz', concept: 'Menú y señalética', amount: 6500, paid: 0, dueDate: rel(4), invoice: '', date: rel(-10), created: Date.now() },
+      { id: uid(), kind: 'client', name: 'Hotel Mar', concept: 'Sitio web · 50% restante', amount: 12000, paid: 0, dueDate: rel(22), invoice: 'A-127', date: rel(-3), created: Date.now() },
+      lumen,
+      { id: uid(), kind: 'person', name: 'Olivia', concept: 'Paseo en lancha', amount: 2000, paid: 0, fromSplit: true, date: rel(-4), created: Date.now() },
+      { id: uid(), kind: 'person', name: 'Jorge', concept: 'Paseo en lancha', amount: 2000, paid: 0, fromSplit: true, date: rel(-4), created: Date.now() }
+    ];
+    state.tx.push({ id: uid(), type: 'income', cat: 'freelance', amount: 8500, account: 'Transferencia', date: rel(-2), note: 'Agencia Lumen · Campaña de lanzamiento', recvId: lumen.id, created: Date.now() });
+    const mkRec = (note, cat0, sub, amount, day, freq = 'monthly', type = 'expense') => {
+      let next = iso(new Date(now.getFullYear(), now.getMonth(), day, 12)); if (next <= today()) next = addFreq(next, freq, day);
+      return { id: uid(), freq, day, active: true, next, template: { type, cat: cat0, sub, amount, account: 'Débito', note } };
+    };
+    state.recurring = [
+      mkRec('Renta', 'hogar', null, 9800, 2), mkRec('Netflix', 'suscripciones', 'streaming', 299, 4), mkRec('Spotify', 'suscripciones', 'musica', 219, 3),
+      mkRec('Smart Fit', 'suscripciones', 'gimnasio', 650, 3), mkRec('Internet', 'servicios', 'internet', 599, 8), mkRec('Colegiatura', 'educacion', 'edu-hijos', 3200, 5),
+      mkRec('Quincena', 'salario', null, 18500, 1, 'biweekly', 'income')
+    ];
     save(); ui.month = ym(now); render(); toast('Datos de ejemplo cargados');
   };
 
@@ -1377,7 +1750,7 @@
   window.addEventListener('scroll', () => $('#topbar').classList.toggle('scrolled', scrollY > 4), { passive: true });
 
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-action],[data-syncmode],[data-freq],[data-recstop],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
+    const t = e.target.closest('[data-action],[data-dtab],[data-mtab],[data-debt],[data-debttype],[data-debtop],[data-recv],[data-recvkind],[data-collect],[data-remind],[data-ics-debt],[data-ics-rec],[data-splitpayer],[data-splitp],[data-splitinc],[data-splitdec],[data-syncmode],[data-freq],[data-recstop],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
     if (!t) return;
     const a = t.dataset.action;
 
@@ -1404,6 +1777,23 @@
     if (t.dataset.op) { $$('[data-op]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
     // Patrimonio
     if (t.dataset.pat) { ui.pat = t.dataset.pat; return render(); }
+    // Deudas y cobros
+    if (t.dataset.dtab) { ui.dtab = t.dataset.dtab; if (t.tagName === 'A') return; return render(); }
+    if (t.dataset.mtab) { ui.mtab = t.dataset.mtab; return render(); }
+    if (t.dataset.debt) { ui.debtOp = 'pay'; return openSheet(debtSheet(t.dataset.debt)); }
+    if (t.dataset.debttype) { ui.debtType = t.dataset.debttype; $$('[data-debttype]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
+    if (t.dataset.debtop) { ui.debtOp = t.dataset.debtop; return openSheet(debtSheet($('#debtMoveForm').dataset.id)); }
+    if (t.dataset.recv) { ui.recvKind = null; return openSheet(recvForm(t.dataset.recv)); }
+    if (t.dataset.recvkind) { ui.recvKind = t.dataset.recvkind; const f = $('#recvForm'); const keep = f ? { n: f.name.value, c: f.concept.value, a: f.amount.value } : null; openSheet(recvForm()); if (keep) { const g = $('#recvForm'); g.name.value = keep.n; g.concept.value = keep.c; g.amount.value = keep.a; } return; }
+    if (t.dataset.collect) return openSheet(collectSheet(t.dataset.collect));
+    if (t.dataset.remind) return remind(t.dataset.remind);
+    if (t.dataset.icsDebt) return addToCalendar({ debt: t.dataset.icsDebt });
+    if (t.dataset.icsRec) return addToCalendar({ rec: t.dataset.icsRec });
+    // Dividir gasto
+    if (t.dataset.splitpayer && ui.draft) { syncDraft(); ui.draft.split.payer = t.dataset.splitpayer; return redrawTx(); }
+    if (t.dataset.splitp !== undefined && ui.draft) { syncDraft(); const k = +t.dataset.splitp; const p = k < 0 ? null : ui.draft.split.people[k]; if (p) p.on = !p.on; return redrawTx(); }
+    if (t.dataset.splitinc !== undefined && ui.draft) { syncDraft(); const k = +t.dataset.splitinc; if (k < 0) ui.draft.split.me++; else ui.draft.split.people[k].shares++; return redrawTx(); }
+    if (t.dataset.splitdec !== undefined && ui.draft) { syncDraft(); const k = +t.dataset.splitdec; if (k < 0) ui.draft.split.me = Math.max(0, ui.draft.split.me - 1); else ui.draft.split.people[k].shares = Math.max(0, ui.draft.split.people[k].shares - 1); return redrawTx(); }
     if (t.dataset.freq && ui.draft) { ui.draft.recur = t.dataset.freq; return redrawTx(); }
     if (t.dataset.recstop) {
       const r = (state.recurring || []).find(x => x.id === t.dataset.recstop);
@@ -1492,20 +1882,48 @@
       case 'receipt': syncDraft(); return $('#receiptInput').click();
       case 'recur-toggle': ui.draft.recur = ui.draft.recur ? null : 'monthly'; return redrawTx();
       case 'rec-list': return openSheet(recListSheet());
+      case 'ics-all': return addToCalendar({ all: true });
+      case 'debt-new': ui.debtType = null; return openSheet(debtForm());
+      case 'debt-edit': ui.debtType = null; return openSheet(debtForm(t.dataset.id));
+      case 'debt-del': {
+        const i = state.debts.findIndex(x => x.id === t.dataset.id); const [rm] = state.debts.splice(i, 1); save(); closeSheet(); render();
+        return toast('Deuda eliminada', () => { state.debts.splice(i, 0, rm); });
+      }
+      case 'recv-new': ui.recvKind = null; ui.recvLend = true; return openSheet(recvForm());
+      case 'recv-edit': ui.recvKind = null; return openSheet(recvForm(t.dataset.id));
+      case 'recv-lend': ui.recvLend = ui.recvLend === false; t.setAttribute('aria-checked', ui.recvLend); t.querySelector('.switch').setAttribute('aria-checked', ui.recvLend); return;
+      case 'recv-del': {
+        const i = state.receivables.findIndex(x => x.id === t.dataset.id); const [rm] = state.receivables.splice(i, 1); save(); closeSheet(); render();
+        return toast('Cobro eliminado', () => { state.receivables.splice(i, 0, rm); });
+      }
+      case 'move-del': {
+        const k = state.tx.findIndex(x => x.id === t.dataset.id); if (k < 0) return;
+        const mv = state.tx[k];
+        if (mv.type === 'debt') { const d = (state.debts || []).find(x => x.id === mv.debtId); if (d) d.balance = Math.round((d.balance + mv.amount) * 100) / 100; }
+        if (mv.type === 'collect' || (mv.type === 'income' && mv.recvId)) { const r = (state.receivables || []).find(x => x.id === mv.recvId); if (r) r.paid = Math.max(0, Math.round(((r.paid || 0) - mv.amount) * 100) / 100); }
+        state.tx.splice(k, 1); save(); closeSheet(); render();
+        return toast('Movimiento eliminado');
+      }
+      case 'split-toggle': syncDraft(); ui.draft.split = ui.draft.split ? null : { payer: 'me', other: '', me: 1, people: [{ name: '', shares: 1, on: true }] }; return redrawTx();
+      case 'split-add': syncDraft(); ui.draft.split.people.push({ name: '', shares: 1, on: true }); redrawTx(); setTimeout(() => { const ins = $$('[data-splitname]'); ins.at(-1)?.focus(); }, 50); return;
       case 'receipt-del': ui.draft.receipt = null; return redrawTx();
       case 'reimb-toggle': ui.draft.reimb = ui.draft.reimb ? null : 'pending'; return redrawTx();
       case 'reimb-done': ui.draft.reimb = ui.draft.reimb === 'done' ? 'pending' : 'done'; return redrawTx();
       case 'tx-del': {
         const i = state.tx.findIndex(x => x.id === ui.draft.id);
-        const [removed] = state.tx.splice(i, 1); save(); closeSheet(); render();
-        return toast('Movimiento eliminado', () => { state.tx.push(removed); });
+        const [removed] = state.tx.splice(i, 1);
+        // Si era el cobro de un cliente, la factura vuelve a quedar pendiente
+        const rv = removed.recvId && (state.receivables || []).find(x => x.id === removed.recvId);
+        if (rv) rv.paid = Math.max(0, Math.round(((rv.paid || 0) - removed.amount) * 100) / 100);
+        save(); closeSheet(); render();
+        return toast('Movimiento eliminado', () => { state.tx.push(removed); if (rv) rv.paid = Math.round(((rv.paid || 0) + removed.amount) * 100) / 100; });
       }
       case 'undo': if (ui._undo) { ui._undo(); ui._undo = null; save(); render(); $('#toast').classList.remove('show'); } return;
     }
   });
 
   document.addEventListener('keydown', e => {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-edit],[data-budget],[data-inv]')) { e.preventDefault(); e.target.click(); }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-edit],[data-budget],[data-inv],[data-debt],[data-recv]')) { e.preventDefault(); e.target.click(); }
     if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !sheet.open && !e.target.matches('input,textarea,select')) { e.preventDefault(); openTx(); }
   });
 
@@ -1513,6 +1931,7 @@
   new MutationObserver(() => $$('.amount-field input').forEach(fitAmount)).observe($('#sheetBody'), { childList: true });
   document.addEventListener('input', e => {
     if (e.target.matches('.amount-field input')) fitAmount(e.target);
+    if (ui.draft && ui.draft.split && (e.target.matches('#txForm [name=amount]') || e.target.matches('[data-splitname]') || e.target.name === 'splitOther')) refreshSplit();
     if (e.target.id === 'q') { ui.q = e.target.value; ui._focusQ = true; render(); }
   });
   document.addEventListener('change', e => {
@@ -1560,6 +1979,26 @@
       const d = ui.draft, amount = parseAmount(d.amount);
       if (!amount) { f.amount.focus(); return toast('Escribe un monto mayor a cero'); }
       const rec = { id: d.id || uid(), type: d.type, cat: d.cat, sub: cat(d.cat).subs ? (d.sub || null) : null, amount, date: d.date || today(), account: d.account, note: d.note.trim(), receipt: d.type === 'expense' ? d.receipt : null, reimb: d.type === 'expense' ? d.reimb : null, created: d.created || Date.now() };
+      // Gasto dividido: solo tu parte es gasto; lo demás pasa a «Me deben» (o a «Debo» si pagó otra persona)
+      let splitMsg = '';
+      if (d.id && d.split) rec.split = d.split;
+      if (!d.id && d.type === 'expense' && d.split) {
+        const c = splitCalc(d), named = c.others.filter(o => o.name);
+        if (c.payer === 'other' && !c.other) { f.splitOther && f.splitOther.focus(); return toast('Escribe quién pagó'); }
+        if (c.others.length && named.length < c.others.length) return toast('Escribe el nombre de cada persona');
+        if (!c.mine) return toast('Incluye tu parte. Si solo prestaste dinero, regístralo en Deudas → Me deben.');
+        rec.amount = c.mine;
+        rec.split = { total: c.total, payer: c.payer, other: c.other, people: named.map(o => ({ name: o.name, amount: o.amount })) };
+        const concept = rec.note || (subOf(rec) || cat(rec.cat)).name;
+        state.receivables = state.receivables || []; state.debts = state.debts || [];
+        if (c.payer === 'me') {
+          named.forEach(o => state.receivables.push({ id: uid(), kind: 'person', name: o.name, concept, amount: o.amount, paid: 0, fromSplit: true, splitTxId: rec.id, date: rec.date, created: Date.now() }));
+          splitMsg = ` · te deben ${money(sum(named, o => o.amount), { compact: true })}`;
+        } else {
+          state.debts.push({ id: uid(), name: c.other, type: 'persona', balance: c.mine, original: c.mine, payment: 0, dueDay: null, rate: 0, counted: true, concept, history: [{ date: rec.date, balance: c.mine }], created: Date.now() });
+          splitMsg = ` · le debes ${money(c.mine, { compact: true })} a ${c.other}`;
+        }
+      }
       // Recurrencia: crear, actualizar o detener
       rec.recurId = d.recurId || null;
       state.recurring = state.recurring || [];
@@ -1583,7 +2022,7 @@
       closeSheet();
       ui.month = rec.date.slice(0, 7);
       render();
-      if (recurMsg) return toast((i >= 0 ? 'Cambios guardados' : rec.type === 'income' ? 'Ingreso agregado' : 'Gasto agregado') + recurMsg);
+      if (recurMsg || splitMsg) return toast((i >= 0 ? 'Cambios guardados' : rec.type === 'income' ? 'Ingreso agregado' : 'Gasto agregado') + splitMsg + recurMsg);
       // Alerta de presupuesto
       const b = state.budgets[rec.cat];
       if (rec.type === 'expense' && b) {
@@ -1619,6 +2058,59 @@
       return toast(!wasDone && g.saved >= g.target ? `¡Meta cumplida: ${g.name}!` : sub ? 'Retiro registrado' : 'Abono registrado');
     }
     if (f.id === 'syncForm') return submitSync(f);
+    if (f.id === 'debtForm') {
+      const id = f.dataset.id, balance = parseAmount(f.balance.value), name = f.name.value.trim();
+      if (!name) return toast('Ponle nombre a la deuda');
+      if (!balance && !id) { f.balance.focus(); return toast('Escribe cuánto debes'); }
+      const data = { name, type: ui.debtType || (id ? state.debts.find(x => x.id === id).type : 'tarjeta'), balance, original: Math.max(parseAmount(f.original.value) || 0, balance), payment: parseAmount(f.payment.value) || 0, dueDay: +f.dueDay.value || null, rate: parseAmount(f.rate.value) || 0 };
+      state.debts = state.debts || [];
+      if (id) Object.assign(state.debts.find(x => x.id === id), data);
+      else state.debts.push({ id: uid(), ...data, history: [{ date: today(), balance }], created: Date.now() });
+      save(); haptic(); closeSheet(); ui.dtab = 'debo'; if (location.hash !== '#deudas') location.hash = 'deudas'; else render();
+      return toast(id ? 'Deuda actualizada' : 'Deuda agregada');
+    }
+    if (f.id === 'debtMoveForm') {
+      const d = state.debts.find(x => x.id === f.dataset.id), op = ui.debtOp || 'pay', amount = parseAmount(f.amount.value), date = f.date.value || today();
+      if (op === 'set') {
+        if (!f.amount.value.trim()) { f.amount.focus(); return toast('Escribe el saldo actual'); }
+        d.balance = amount; d.original = Math.max(d.original || 0, amount);
+      } else {
+        if (!amount) { f.amount.focus(); return toast('Escribe cuánto abonaste'); }
+        const paid = Math.min(amount, d.balance);
+        d.balance = Math.round((d.balance - paid) * 100) / 100; d.lastPaid = date;
+        state.tx.push({ id: uid(), type: 'debt', debtId: d.id, amount: paid, account: f.account.value, date, note: d.name, counted: !!d.counted, created: Date.now() });
+      }
+      d.history = [...(d.history || []), { date, balance: d.balance }];
+      save(); haptic(d.balance <= 0.004 ? [20, 60, 20] : 12); closeSheet(); render();
+      return toast(op === 'set' ? 'Saldo actualizado' : d.balance <= 0.004 ? `¡Liquidaste ${d.name}!` : `Abono registrado · debes ${money(d.balance, { compact: true })}`);
+    }
+    if (f.id === 'recvForm') {
+      const id = f.dataset.id, name = f.name.value.trim(), amount = parseAmount(f.amount.value);
+      if (!name) return toast('¿Quién te debe?');
+      if (!amount) { f.amount.focus(); return toast('Escribe el monto'); }
+      state.receivables = state.receivables || [];
+      const kind = id ? state.receivables.find(x => x.id === id).kind : (ui.recvKind || (ui.mtab === 'personas' ? 'person' : 'client'));
+      const data = { name, concept: f.concept.value.trim(), amount, dueDate: f.dueDate ? f.dueDate.value || null : null, invoice: f.invoice ? f.invoice.value.trim() : '' };
+      if (id) Object.assign(state.receivables.find(x => x.id === id), data);
+      else {
+        const r = { id: uid(), kind, ...data, paid: 0, date: today(), created: Date.now() };
+        state.receivables.push(r);
+        if (kind === 'person' && ui.recvLend !== false) state.tx.push({ id: uid(), type: 'lend', recvId: r.id, amount, account: 'Efectivo', date: today(), note: name, created: Date.now() });
+      }
+      save(); haptic(); closeSheet(); ui.dtab = 'me'; ui.mtab = kind === 'person' ? 'personas' : 'clientes';
+      if (location.hash !== '#deudas') location.hash = 'deudas'; else render();
+      return toast(id ? 'Cobro actualizado' : kind === 'client' ? 'Cobro registrado' : 'Préstamo registrado');
+    }
+    if (f.id === 'collectForm') {
+      const r = state.receivables.find(x => x.id === f.dataset.id), amount = Math.min(parseAmount(f.amount.value), recvPending(r)), date = f.date.value || today();
+      if (!amount) { f.amount.focus(); return toast('Escribe cuánto te pagó'); }
+      r.paid = Math.round(((r.paid || 0) + amount) * 100) / 100;
+      if (r.kind === 'client') state.tx.push({ id: uid(), type: 'income', cat: 'freelance', amount, account: f.account.value, date, note: `${r.name}${r.concept ? ' · ' + r.concept : ''}`, recvId: r.id, created: Date.now() });
+      else state.tx.push({ id: uid(), type: 'collect', recvId: r.id, amount, account: f.account.value, date, note: r.name, counted: !!r.fromSplit, created: Date.now() });
+      save(); haptic(recvPending(r) <= 0.004 ? [20, 60, 20] : 12); closeSheet(); render();
+      const left = recvOpen(r.kind).filter(x => x.name.trim().toLowerCase() === r.name.trim().toLowerCase());
+      return toast(recvPending(r) > 0.004 ? `Cobro parcial · faltan ${money(recvPending(r), { compact: true })}` : r.kind === 'person' && !left.length ? `¡Todo saldado con ${r.name}!` : 'Cobro registrado');
+    }
     if (f.id === 'invForm') {
       const id = f.dataset.id, name = f.name.value.trim();
       if (!name) return toast('Ponle nombre a tu inversión');
@@ -1728,6 +2220,7 @@
     Object.entries(state.budgets).forEach(([k, v]) => { r['budget:' + k] = { kind: 'budget', data: { id: k, amount: v } }; });
     (state.recurring || []).forEach(x => { r['rec:' + x.id] = { kind: 'rec', data: x }; });
     (state.debts || []).forEach(x => { r['debt:' + x.id] = { kind: 'debt', data: x }; });
+    (state.receivables || []).forEach(x => { r['recv:' + x.id] = { kind: 'recv', data: x }; });
     r['meta:perfil'] = { kind: 'meta', data: { currency: state.settings.currency, name: state.settings.name || '', rules: state.rules || {} } };
     return r;
   };
@@ -1739,6 +2232,7 @@
     else if (kind === 'inv') { state.investments = state.investments || []; put(state.investments); }
     else if (kind === 'rec') { state.recurring = state.recurring || []; put(state.recurring); }
     else if (kind === 'debt') { state.debts = state.debts || []; put(state.debts); }
+    else if (kind === 'recv') { state.receivables = state.receivables || []; put(state.receivables); }
     else if (kind === 'budget') { if (deleted) delete state.budgets[key]; else state.budgets[key] = data.amount; }
     else if (kind === 'meta' && !deleted) { state.settings.currency = data.currency || state.settings.currency; state.settings.name = data.name || ''; state.rules = data.rules || {}; }
   };
