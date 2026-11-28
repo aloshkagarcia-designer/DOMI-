@@ -43,7 +43,8 @@ La página detecta el dispositivo y ofrece la descarga correcta.
 - **Límites** por categoría con alertas al 80% y 100%.
 - **Patrimonio**: metas de ahorro e inversiones (CETES, fondos, acciones/ETF, AFORE, cripto, bienes raíces) con rendimiento, distribución y evolución. Aportar a una inversión no cuenta como gasto.
 - **Ajustes**: moneda, modo claro/oscuro, reporte CSV, respaldo e importación.
-- **Privada**: sin cuentas ni servidor; los datos viven en el dispositivo. Funciona sin conexión.
+- **Sincronización entre dispositivos** (opcional): con una cuenta DOMI, lo que registras en el celular aparece en la computadora en segundos. Cifrado de extremo a extremo con tu contraseña: el servidor (Supabase) solo guarda datos ilegibles.
+- **Privada**: sin cuenta, los datos viven solo en el dispositivo. Funciona sin conexión.
 
 ## Estructura
 | Carpeta | Contenido |

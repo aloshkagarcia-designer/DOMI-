@@ -162,8 +162,9 @@
   };
   let state = load();
   if (!state.settings.since) state.settings.since = iso(new Date());   // fecha de inicio de uso (para el primer recordatorio)
+  let afterSave = () => {};   // la sincronización se engancha aquí
   const save = () => {
-    try { localStorage.setItem(STORE, JSON.stringify(state)); return true; }
+    try { localStorage.setItem(STORE, JSON.stringify(state)); afterSave(); return true; }
     catch (e) { toast('No hay espacio suficiente. Elimina algunos recibos o exporta un respaldo.'); return false; }
   };
 
@@ -724,6 +725,7 @@
     const kb = Math.round((JSON.stringify(state).length / 1024));
     return `<div class="page-head"><div><div class="eyebrow">Preferencias</div><h1 class="h1">Ajustes<span>.</span></h1></div></div>
     <div class="grid two-col">
+      ${syncCard()}
       <section class="card"><h2 class="h2" style="margin-bottom:6px">Perfil</h2><div class="set-list">
         <div class="set-row"><div><div class="label">Tu nombre</div><div class="hint">Para saludarte en el inicio</div></div><input id="setName" value="${esc(s.name)}" placeholder="Opcional" maxlength="24"></div>
         <div class="set-row"><div><div class="label">Moneda</div><div class="hint">Formato de todos los montos</div></div><select id="setCur">${Object.keys(CURRENCIES).map(c => `<option ${c === s.currency ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
@@ -1271,7 +1273,7 @@
   window.addEventListener('scroll', () => $('#topbar').classList.toggle('scrolled', scrollY > 4), { passive: true });
 
   document.addEventListener('click', async e => {
-    const t = e.target.closest('[data-action],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
+    const t = e.target.closest('[data-action],[data-syncmode],[data-edit],[data-type],[data-cat],[data-sub],[data-hview],[data-impi],[data-impmode],[data-day],[data-pat],[data-inv],[data-invop],[data-invtype],[data-filter-type],[data-budget],[data-budget-del],[data-goal-add],[data-goal-edit],[data-goal-del],[data-op]');
     if (!t) return;
     const a = t.dataset.action;
 
@@ -1298,6 +1300,7 @@
     if (t.dataset.op) { $$('[data-op]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
     // Patrimonio
     if (t.dataset.pat) { ui.pat = t.dataset.pat; return render(); }
+    if (t.dataset.syncmode) { ui.syncMode = t.dataset.syncmode; $$('[data-syncmode]').forEach(b => b.setAttribute('aria-pressed', b === t)); return; }
     // Importar estado de cuenta
     if (t.dataset.impi !== undefined && ui.imp) { const it = ui.imp.items[+t.dataset.impi]; it.include = !it.include; return impRedraw(); }
     if (t.dataset.impmode && ui.imp) { ui.imp.mode = t.dataset.impmode; if (ui.imp.mode === 'two') { ui.imp.map.debit ??= -1; ui.imp.map.credit ??= -1; } else ui.imp.map.amount ??= 0; buildImportItems(); return impRedraw(); }
@@ -1339,11 +1342,17 @@
       case 'backup-toggle': state.settings.backupReminder = state.settings.backupReminder === false; save(); return render();
       case 'import': return $('#importInput').click();
       case 'wipe':
-        if (!confirm('¿Borrar todos tus movimientos, límites y metas? Esta acción no se puede deshacer.')) return;
+        if (!confirm(sync ? '¿Borrar todos tus datos? También se borrarán de tu cuenta y de tus otros dispositivos. No se puede deshacer.' : '¿Borrar todos tus movimientos, límites y metas? Esta acción no se puede deshacer.')) return;
         state = { ...blank(), settings: state.settings }; save(); render(); return toast('Datos borrados');
       case 'budget': return openSheet(budgetForm());
       case 'goal': return openSheet(goalForm());
       case 'stmt': return $('#stmtInput').click();
+      case 'sync-signup': ui.syncMode = null; return openSheet(syncForm('signup'));
+      case 'sync-login': ui.syncMode = null; return openSheet(syncForm('login'));
+      case 'sync-now': return syncNow();
+      case 'sync-logout':
+        if (!confirm('¿Cerrar sesión en este dispositivo? Tus datos se quedan aquí y en tu cuenta; solo dejarán de sincronizarse en este equipo.')) return;
+        await signOut(); return toast('Sesión cerrada en este dispositivo');
       case 'imp-review': ui.imp.step = 'review'; return impRedraw();
       case 'imp-map': ui.imp.step = 'map'; return impRedraw();
       case 'imp-invert': ui.imp.invert = !ui.imp.invert; buildImportItems(); return impRedraw();
@@ -1481,6 +1490,7 @@
       haptic(!wasDone && g.saved >= g.target ? [20, 60, 20] : 12);
       return toast(!wasDone && g.saved >= g.target ? `¡Meta cumplida: ${g.name}!` : sub ? 'Retiro registrado' : 'Abono registrado');
     }
+    if (f.id === 'syncForm') return submitSync(f);
     if (f.id === 'invForm') {
       const id = f.dataset.id, name = f.name.value.trim();
       if (!name) return toast('Ponle nombre a tu inversión');
@@ -1523,10 +1533,271 @@
     }
   });
 
+  // =====================================================================
+  // Sincronización entre dispositivos (Supabase) con cifrado de extremo a extremo
+  // - De una sola contraseña se derivan DOS secretos con PBKDF2:
+  //     · "secreto de acceso" (sal = correo) → es lo que recibe Supabase como contraseña
+  //     · "llave de cifrado" AES-GCM (sal aleatoria guardada en domi_keys)
+  //   Supabase nunca ve la contraseña real ni puede descifrar los datos.
+  // - Cada movimiento, meta, inversión y límite es un registro cifrado.
+  // - Se suben solo los cambios; los otros dispositivos se enteran en tiempo real.
+  // =====================================================================
+  const SB_URL = 'https://bguijahniuyaewnxuwih.supabase.co';
+  const SB_KEY = 'sb_publishable_c8h7zodkNJw9aZSP2_CcDw_9g19PzHh';
+  const SYNC_STORE = 'domi.sync.v1';
+  let sync = (() => { try { return JSON.parse(localStorage.getItem(SYNC_STORE)) || null; } catch (e) { return null; } })();
+  const saveSync = () => { try { if (sync) localStorage.setItem(SYNC_STORE, JSON.stringify(sync)); else localStorage.removeItem(SYNC_STORE); } catch (e) { /* sin almacenamiento */ } };
+  let sb = null, cryptoKey = null, channel = null, applyingRemote = false;
+  const syncState = { status: sync ? 'syncing' : 'off', at: null, error: '' };
+
+  const te = new TextEncoder(), td = new TextDecoder();
+  const b64 = buf => { const a = new Uint8Array(buf); let s = ''; for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(s); };
+  const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const pbkdf2 = async (password, salt) => {
+    const base = await crypto.subtle.importKey('raw', te.encode(password), 'PBKDF2', false, ['deriveBits']);
+    return crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 210000, hash: 'SHA-256' }, base, 256);
+  };
+  const accessSecret = async (email, password) => b64(await pbkdf2(password, te.encode('domi-auth:' + email.trim().toLowerCase())));
+  const useKey = async raw => { cryptoKey = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']); };
+  const encryptStr = async str => { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, te.encode(str)); return { payload: b64(ct), iv: b64(iv) }; };
+  const decryptStr = async (payload, iv) => td.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv) }, cryptoKey, unb64(payload)));
+  const hashStr = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return (h >>> 0).toString(36) + '.' + s.length; };
+
+  const loadSupabase = () => new Promise((res, rej) => {
+    if (window.supabase && window.supabase.createClient) return res();
+    const s = document.createElement('script'); s.src = 'vendor/supabase.js'; s.onload = res; s.onerror = () => rej(new Error('No se pudo cargar el módulo de sincronización'));
+    document.head.appendChild(s);
+  });
+  const client = async () => {
+    if (sb) return sb;
+    await loadSupabase();
+    sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'domi-auth', detectSessionInUrl: false } });
+    return sb;
+  };
+
+  const setSync = (status, error = '') => {
+    syncState.status = status; syncState.error = error;
+    if (status === 'ok') syncState.at = new Date();
+    if (ui.view === 'ajustes' && !sheet.open) render();
+    const dot = $('#topGear'); if (dot) dot.dataset.sync = sync ? status : '';
+  };
+  const errMsg = e => {
+    const m = String((e && (e.message || e.error_description)) || e || '');
+    if (!navigator.onLine || /fetch|network|Failed to/i.test(m)) return 'Sin conexión. Se sincronizará al volver el internet.';
+    if (/Invalid login/i.test(m)) return 'Correo o contraseña incorrectos.';
+    if (/already registered|already been registered|exists/i.test(m)) return 'Ese correo ya tiene cuenta. Usa «Iniciar sesión».';
+    if (/rate limit|too many/i.test(m)) return 'Demasiados intentos. Espera un momento.';
+    if (/email/i.test(m) && /invalid/i.test(m)) return 'Revisa que el correo esté bien escrito.';
+    return m || 'Algo salió mal al sincronizar.';
+  };
+
+  // ---- Registros ↔ estado ----
+  const toRecords = () => {
+    const r = {};
+    state.tx.forEach(t => { r['tx:' + t.id] = { kind: 'tx', data: t }; });
+    state.goals.forEach(g => { r['goal:' + g.id] = { kind: 'goal', data: g }; });
+    (state.investments || []).forEach(i => { r['inv:' + i.id] = { kind: 'inv', data: i }; });
+    Object.entries(state.budgets).forEach(([k, v]) => { r['budget:' + k] = { kind: 'budget', data: { id: k, amount: v } }; });
+    r['meta:perfil'] = { kind: 'meta', data: { currency: state.settings.currency, name: state.settings.name || '', rules: state.rules || {} } };
+    return r;
+  };
+  const applyRecord = (id, kind, data, deleted) => {
+    const key = id.slice(id.indexOf(':') + 1);
+    const put = arr => { const i = arr.findIndex(x => x.id === key); if (deleted) { if (i >= 0) arr.splice(i, 1); } else if (i >= 0) arr[i] = data; else arr.push(data); };
+    if (kind === 'tx') put(state.tx);
+    else if (kind === 'goal') put(state.goals);
+    else if (kind === 'inv') { state.investments = state.investments || []; put(state.investments); }
+    else if (kind === 'budget') { if (deleted) delete state.budgets[key]; else state.budgets[key] = data.amount; }
+    else if (kind === 'meta' && !deleted) { state.settings.currency = data.currency || state.settings.currency; state.settings.name = data.name || ''; state.rules = data.rules || {}; }
+  };
+
+  // ---- Subir cambios ----
+  let pushing = false, pushAgain = false, pushTimer = null;
+  const schedulePush = () => { if (!sync || !cryptoKey) return; clearTimeout(pushTimer); pushTimer = setTimeout(push, 700); };
+  const push = async () => {
+    if (!sync || !cryptoKey) return;
+    if (pushing) { pushAgain = true; return; }
+    pushing = true;
+    try {
+      const db = await client(), recs = toRecords(), known = sync.known || {}, rows = [], nextKnown = {}, now = new Date().toISOString();
+      for (const [id, { kind, data }] of Object.entries(recs)) {
+        const json = JSON.stringify(data), h = hashStr(json);
+        if (known[id] !== h) { const e = await encryptStr(json); rows.push({ user_id: sync.userId, id, kind, payload: e.payload, iv: e.iv, deleted: false, updated_at: now }); }
+        nextKnown[id] = h;
+      }
+      for (const id of Object.keys(known)) if (!recs[id]) rows.push({ user_id: sync.userId, id, kind: id.split(':')[0], payload: '', iv: '', deleted: true, updated_at: now });
+      for (let i = 0; i < rows.length; i += 100) {
+        const { error } = await db.from('domi_records').upsert(rows.slice(i, i + 100), { onConflict: 'user_id,id' });
+        if (error) throw error;
+      }
+      sync.known = nextKnown; saveSync(); setSync('ok');
+    } catch (e) { setSync(navigator.onLine ? 'error' : 'offline', errMsg(e)); }
+    finally { pushing = false; if (pushAgain) { pushAgain = false; schedulePush(); } }
+  };
+
+  // ---- Bajar cambios ----
+  let pulling = false, pullTimer = null;
+  const schedulePull = () => { clearTimeout(pullTimer); pullTimer = setTimeout(pull, 350); };
+  const pull = async () => {
+    if (!sync || !cryptoKey || pulling) return;
+    pulling = true;
+    try {
+      const db = await client();
+      // Margen de 5 minutos por posibles diferencias de reloj entre dispositivos
+      const from = sync.since ? new Date(new Date(sync.since).getTime() - 5 * 60000).toISOString() : '1970-01-01T00:00:00Z';
+      let max = sync.since || '', changed = false, page = 0;
+      sync.known = sync.known || {};
+      for (;;) {
+        const { data, error } = await db.from('domi_records').select('id,kind,payload,iv,deleted,updated_at')
+          .gt('updated_at', from).order('updated_at', { ascending: true }).order('id').range(page * 500, page * 500 + 499);
+        if (error) throw error;
+        for (const row of data) {
+          if (row.deleted) {
+            if (sync.known[row.id] !== undefined) { applyRecord(row.id, row.kind, null, true); delete sync.known[row.id]; changed = true; }
+          } else {
+            const json = await decryptStr(row.payload, row.iv), h = hashStr(json);
+            if (sync.known[row.id] !== h) { applyRecord(row.id, row.kind, JSON.parse(json), false); sync.known[row.id] = h; changed = true; }
+          }
+          if (!max || new Date(row.updated_at) > new Date(max)) max = row.updated_at;
+        }
+        if (data.length < 500) break;
+        page++;
+      }
+      sync.since = max; saveSync();
+      if (changed) { applyingRemote = true; save(); applyingRemote = false; if (!sheet.open) render(); }
+      setSync('ok');
+    } catch (e) { setSync(navigator.onLine ? 'error' : 'offline', errMsg(e)); }
+    finally { pulling = false; }
+  };
+
+  const syncNow = async () => { if (!sync) return; setSync('syncing'); await push(); await pull(); };
+
+  const listen = async () => {
+    const db = await client();
+    if (channel) { try { await db.removeChannel(channel); } catch (e) { /* ya cerrado */ } }
+    channel = db.channel('domi-' + sync.userId)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'domi_records', filter: 'user_id=eq.' + sync.userId }, () => schedulePull())
+      .subscribe();
+  };
+
+  afterSave = () => { if (sync && !applyingRemote) schedulePush(); };
+
+  // ---- Cuenta: crear / entrar / salir ----
+  const enableSync = async (session, password, keyRow, mode) => {
+    let raw;
+    const db = await client();
+    if (keyRow) {
+      raw = await pbkdf2(password, unb64(keyRow.salt));
+      await useKey(raw);
+      try { if (await decryptStr(keyRow.verifier, keyRow.verifier_iv) !== 'domi-ok') throw new Error(); }
+      catch (e) { cryptoKey = null; throw new Error('La contraseña no coincide con la de cifrado de esta cuenta.'); }
+    } else {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      raw = await pbkdf2(password, salt);
+      await useKey(raw);
+      const v = await encryptStr('domi-ok');
+      const { error } = await db.from('domi_keys').insert({ user_id: session.user.id, salt: b64(salt), verifier: v.payload, verifier_iv: v.iv });
+      if (error) throw error;
+    }
+    // "replace": este dispositivo toma solo los datos de la cuenta
+    if (mode === 'replace') { state = { ...blank(), settings: state.settings }; applyingRemote = true; save(); applyingRemote = false; }
+    sync = { email: session.user.email, userId: session.user.id, key: b64(raw), known: {}, since: '' };
+    saveSync();
+    await listen();
+    setSync('syncing');
+    await pull();   // primero lo de la cuenta…
+    await push();   // …luego lo que solo existe en este dispositivo
+    render();
+  };
+
+  const createAccount = async (email, password, mode) => {
+    const db = await client();
+    const { data, error } = await db.auth.signUp({ email, password: await accessSecret(email, password) });
+    if (error) throw error;
+    if (!data.session) throw new Error('Tu cuenta requiere confirmar el correo. Revisa tu bandeja de entrada.');
+    await enableSync(data.session, password, null, mode);
+  };
+  const signIn = async (email, password, mode) => {
+    const db = await client();
+    const { data, error } = await db.auth.signInWithPassword({ email, password: await accessSecret(email, password) });
+    if (error) throw error;
+    const { data: keyRow, error: kErr } = await db.from('domi_keys').select('salt,verifier,verifier_iv').eq('user_id', data.session.user.id).maybeSingle();
+    if (kErr) throw kErr;
+    await enableSync(data.session, password, keyRow, mode);
+  };
+  const signOut = async () => {
+    try { const db = await client(); if (channel) await db.removeChannel(channel); await db.auth.signOut(); } catch (e) { /* sin conexión: se cierra localmente */ }
+    channel = null; sync = null; cryptoKey = null; saveSync(); setSync('off'); render();
+  };
+
+  // Reanudar al abrir la app
+  const resumeSync = async () => {
+    if (!sync || !sync.key) return;
+    try {
+      await useKey(unb64(sync.key));
+      const db = await client();
+      const { data } = await db.auth.getSession();
+      if (!data.session) { setSync('error', 'Tu sesión expiró. Vuelve a iniciar sesión.'); return; }
+      await listen(); await syncNow();
+    } catch (e) { setSync(navigator.onLine ? 'error' : 'offline', errMsg(e)); }
+  };
+  window.addEventListener('online', () => { if (sync) syncNow(); });
+  setInterval(() => { if (sync && cryptoKey && document.visibilityState === 'visible') pull(); }, 30000);
+  document.addEventListener('visibilitychange', () => { if (sync && document.visibilityState === 'visible') syncNow(); });
+
+  // ---- Interfaz ----
+  const syncAgo = () => { if (!syncState.at) return ''; const s = Math.round((Date.now() - syncState.at) / 1000); return s < 10 ? 'justo ahora' : s < 60 ? `hace ${s} s` : `hace ${Math.round(s / 60)} min`; };
+  const syncCard = () => {
+    if (!sync) return `<section class="card sync-card"><div class="sync-hero"><div class="ico-glyph sync-ico">${icon('cloud')}</div><div><h2 class="h2">Sincroniza tus dispositivos</h2><p class="hint">Ve los mismos datos en tu celular y tu computadora, al instante. Cifrado de extremo a extremo: solo tú puedes leerlos.</p></div></div>
+      <div class="sync-acts"><button class="btn green" data-action="sync-signup">Crear cuenta</button><button class="btn" data-action="sync-login">Iniciar sesión</button></div></section>`;
+    const st = syncState.status;
+    const label = { ok: `Sincronizado${syncAgo() ? ' · ' + syncAgo() : ''}`, syncing: 'Sincronizando…', offline: 'Sin conexión · se sincronizará al volver', error: syncState.error || 'Error al sincronizar', off: '' }[st];
+    return `<section class="card sync-card"><div class="card-head" style="margin-bottom:10px"><h2 class="h2">Sincronización</h2><span class="sync-state ${st}"><i></i>${st === 'ok' ? 'Activa' : st === 'syncing' ? 'Sincronizando' : st === 'offline' ? 'Sin conexión' : 'Revisar'}</span></div>
+      <div class="set-list">
+        <div class="set-row"><div><div class="label">${esc(sync.email)}</div><div class="hint">${esc(label)}</div></div>${icon('shield')}</div>
+        <div class="set-row"><div><div class="label">Cifrado de extremo a extremo</div><div class="hint">Tus datos viajan y se guardan cifrados. Ni DOMI puede leerlos.</div></div></div>
+      </div>
+      <div class="sync-acts"><button class="btn" data-action="sync-now">${icon('refresh')}Sincronizar ahora</button>${st === 'error' && /expir/.test(syncState.error) ? '<button class="btn green" data-action="sync-login">Iniciar sesión</button>' : '<button class="btn ghost" data-action="sync-logout">Cerrar sesión</button>'}</div></section>`;
+  };
+  const localCount = () => state.tx.length + state.goals.length + (state.investments || []).length;
+  const syncForm = mode => {
+    const signup = mode === 'signup', n = localCount();
+    return `${sheetHead(signup ? 'Crear cuenta DOMI' : 'Iniciar sesión')}
+    <form id="syncForm" data-mode="${mode}" autocomplete="on">
+      <p class="lede" style="margin:-6px 0 6px">${signup ? 'Usa la misma cuenta en todos tus dispositivos.' : 'Entra con la cuenta que creaste en tu otro dispositivo.'}</p>
+      <label><span class="field-label">Correo</span><input class="input" type="email" name="email" required autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="tu@correo.com" value="${esc(sync && sync.email || '')}"></label>
+      <label><span class="field-label">Contraseña</span><input class="input" type="password" name="password" required minlength="8" autocomplete="${signup ? 'new-password' : 'current-password'}" placeholder="Mínimo 8 caracteres"></label>
+      ${signup ? `<label><span class="field-label">Repite la contraseña</span><input class="input" type="password" name="password2" required minlength="8" autocomplete="new-password"></label>
+      <div class="toggle-row note-row warn-row"><span><b>Guárdala en un lugar seguro</b><small>Esta contraseña también cifra tus datos. Si la olvidas, nadie puede recuperar la copia de la nube (ni nosotros). Los datos de tus dispositivos no se pierden.</small></span></div>` : ''}
+      ${!signup && n ? `<span class="field-label">Este dispositivo tiene ${n} registros</span>
+      <div class="seg" role="group"><button type="button" data-syncmode="merge" aria-pressed="${ui.syncMode !== 'replace'}">Combinar con mi cuenta</button><button type="button" data-syncmode="replace" aria-pressed="${ui.syncMode === 'replace'}">Usar solo los de mi cuenta</button></div>` : ''}
+      <p class="sync-err" id="syncErr" role="alert"></p>
+      <div class="sheet-actions"><button class="btn green" id="syncSubmit">${signup ? 'Crear cuenta y sincronizar' : 'Entrar y sincronizar'}</button></div>
+      <p class="inv-note" style="text-align:center">${signup ? '¿Ya tienes cuenta? <button type="button" class="link" data-action="sync-login">Inicia sesión</button>' : '¿No tienes cuenta? <button type="button" class="link" data-action="sync-signup">Créala aquí</button>'}</p>
+    </form>`;
+  };
+  const submitSync = async f => {
+    const mode = f.dataset.mode, email = f.email.value.trim(), pass = f.password.value, err = $('#syncErr'), btn = $('#syncSubmit');
+    err.textContent = '';
+    if (mode === 'signup' && pass !== f.password2.value) { err.textContent = 'Las contraseñas no coinciden.'; return; }
+    if (pass.length < 8) { err.textContent = 'Usa al menos 8 caracteres.'; return; }
+    btn.disabled = true; btn.textContent = 'Protegiendo tus datos…';
+    try {
+      if (mode === 'signup') await createAccount(email, pass, 'merge');
+      else await signIn(email, pass, ui.syncMode === 'replace' ? 'replace' : 'merge');
+      haptic(); closeSheet(); ui.syncMode = null; location.hash = 'ajustes'; render();
+      toast(mode === 'signup' ? 'Cuenta creada. Tus datos ya se sincronizan.' : 'Listo. Tus datos están sincronizados.');
+    } catch (e) {
+      if (sync == null) cryptoKey = null;
+      err.textContent = errMsg(e); btn.disabled = false; btn.textContent = mode === 'signup' ? 'Crear cuenta y sincronizar' : 'Entrar y sincronizar';
+    }
+  };
+
   // ---------- Arranque ----------
   // Pide al sistema que no borre los datos de DOMI para liberar espacio
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) { /* no soportado */ }
   route();
+  resumeSync();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     if (!isNative) navigator.serviceWorker.register('sw.js').catch(() => {});
   }

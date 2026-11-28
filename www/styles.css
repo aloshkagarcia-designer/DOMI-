@@ -769,3 +769,29 @@ dialog.sheet:focus, dialog.sheet:focus-visible, .sheet-inner:focus { outline: no
   .backup-note { grid-template-columns: 44px 1fr auto; }
   .backup-note .acts { grid-column: auto; }
 }
+
+/* ---------- Sincronización ---------- */
+.sync-card { display: grid; gap: 14px; }
+.sync-hero { display: grid; grid-template-columns: 48px 1fr; gap: 14px; align-items: start; }
+.sync-hero .hint { color: var(--muted); font-size: 13.5px; margin: 4px 0 0; }
+.ico-glyph.sync-ico { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--blue-soft); color: var(--blue-text); }
+.ico-glyph.sync-ico svg { width: 24px; height: 24px; }
+.sync-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.sync-acts .btn { flex: 1; }
+.sync-card .set-row > svg { width: 20px; height: 20px; color: var(--green-text); flex: none; }
+.sync-state { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.sync-state i { width: 8px; height: 8px; border-radius: 9px; background: var(--muted); }
+.sync-state.ok { color: var(--green-text); }
+.sync-state.ok i { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.sync-state.syncing i { background: var(--blue); animation: pulse 1s ease-in-out infinite; }
+.sync-state.error { color: var(--danger); }
+.sync-state.error i { background: var(--danger); }
+@keyframes pulse { 50% { opacity: .3; } }
+.sync-err { color: var(--danger); font-size: 13px; min-height: 18px; margin: 10px 0 0; }
+.warn-row { border-color: color-mix(in srgb, var(--blue) 40%, var(--line)); }
+.link { color: var(--blue-text); font-weight: 600; }
+.top-gear { position: relative; }
+.top-gear[data-sync]:not([data-sync=""])::after { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 9px; border: 2px solid var(--bg); background: var(--muted); }
+.top-gear[data-sync="ok"]:not([data-sync=""])::after { background: var(--green); }
+.top-gear[data-sync="syncing"]:not([data-sync=""])::after { background: var(--blue); }
+.top-gear[data-sync="error"]:not([data-sync=""])::after { background: var(--danger); }
